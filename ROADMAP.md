@@ -40,6 +40,13 @@
 - [x] Built guest login flow - guests now see only trips/events they're invited to
 - [x] Added permission-aware edit controls (guests with edit permission can modify content)
 - [x] Wired up email invitations - adding guests now sends beautiful HTML email invites
+- [x] Fixed React Error #310 (Invalid hook call) - moved useState before early returns
+- [x] Fixed TypeError guest.name undefined in charAt calls
+- [x] Removed flying emojis, bouncing emoji overlay, and floating decorations from home page
+- [x] Modified navigation - moved Life Planning & Business to 🚧 dropdown button
+- [x] Added Calendar button to main navigation
+- [x] Built Calendar section with Google Calendar integration
+- [x] Added import dialog to convert Google Calendar events to trips, events, or memories
 
 ---
 

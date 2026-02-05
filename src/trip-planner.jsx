@@ -4689,6 +4689,41 @@ export default function TripPlanner() {
                   <span className="text-xl">❤️</span>
                 </div>
               </div>
+
+              {/* Install App Button - Only show when not in app mode */}
+              {!initialAppMode && (
+                <div className="text-center mt-8">
+                  <div className="bg-white/5 rounded-2xl p-6 border border-white/10 max-w-md mx-auto">
+                    <div className="text-4xl mb-3">📱</div>
+                    <h3 className="text-lg font-semibold text-white mb-2">Get the Fitness App</h3>
+                    <p className="text-slate-400 text-sm mb-4">
+                      Install our fitness tracker on your iPhone for quick access to your training plans
+                    </p>
+                    <button
+                      onClick={() => {
+                        const appUrl = `${window.location.origin}/?app=fitness`;
+                        if (navigator.share) {
+                          navigator.share({
+                            title: 'Mike & Adam\'s Fitness',
+                            text: 'Install the Fitness app: Open this link in Safari, tap Share, then "Add to Home Screen"',
+                            url: appUrl
+                          });
+                        } else {
+                          navigator.clipboard.writeText(appUrl);
+                          showToast('Link copied! Open in Safari and tap Share → Add to Home Screen', 'success');
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg"
+                    >
+                      <span>🏃</span>
+                      Install Fitness App
+                    </button>
+                    <p className="text-slate-500 text-xs mt-3">
+                      Open in Safari → Share → Add to Home Screen
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {/* ========== END FITNESS SECTION ========== */}

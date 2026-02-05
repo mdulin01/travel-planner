@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Calendar, Plane, Hotel, Music, MapPin, Plus, X, ChevronLeft, ChevronRight, Heart, Anchor, Sun, Star, Clock, Users, ExternalLink, Sparkles, Pencil, Check, MoreVertical, Trash2, Palette, Image, Link, Globe, Loader, LogIn, LogOut, User, UserPlus, Share2, Upload, Folder, Edit3, CheckSquare } from 'lucide-react';
+import { Calendar, Plane, Hotel, Music, MapPin, Plus, X, ChevronLeft, ChevronRight, Heart, Anchor, Sun, Star, Clock, Users, ExternalLink, Sparkles, Pencil, Check, MoreVertical, Trash2, Palette, Image, Link, Globe, Loader, LogIn, LogOut, User, UserPlus, Share2, Upload, Folder, Edit3, CheckSquare, RefreshCw } from 'lucide-react';
 
 // Import constants and utilities
 import {
@@ -4557,29 +4557,72 @@ export default function TripPlanner() {
                 <p className="text-slate-400">All our adventures, events, and memories in one place</p>
               </div>
 
-              {/* Google Calendar Buttons */}
-              <div className="flex flex-col items-center gap-3 mb-8">
-                <button
-                  onClick={connectGoogleCalendar}
-                  disabled={calendarLoading}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg disabled:opacity-50"
-                >
-                  {calendarLoading ? (
-                    <Loader className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <>
-                      <Globe className="w-5 h-5" />
-                      {calendarConnected ? 'Refresh Google Calendar' : 'Connect Google Calendar'}
-                    </>
-                  )}
-                </button>
-                {calendarConnected && (
+              {/* Google Calendar Connection */}
+              <div className="flex flex-col items-center gap-4 mb-8">
+                {calendarConnected ? (
+                  <>
+                    {/* Connected State */}
+                    <div className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500/20 border border-emerald-500/40 rounded-full">
+                      <Check className="w-5 h-5 text-emerald-400" />
+                      <span className="text-emerald-300 font-medium">Google Calendar Connected</span>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          setCalendarConnected(false);
+                          setGoogleCalendarEvents([]);
+                          setSelectedCalendarId('primary');
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white/80 hover:text-white rounded-full transition text-sm"
+                      >
+                        <X className="w-4 h-4" />
+                        Disconnect
+                      </button>
+                      <button
+                        onClick={connectGoogleCalendar}
+                        disabled={calendarLoading}
+                        className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white/80 hover:text-white rounded-full transition text-sm disabled:opacity-50"
+                      >
+                        {calendarLoading ? (
+                          <Loader className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4" />
+                        )}
+                        Refresh
+                      </button>
+                      <button
+                        onClick={() => window.open('https://calendar.google.com', '_blank')}
+                        className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white/80 hover:text-white rounded-full transition text-sm"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Open in Google
+                      </button>
+                    </div>
+
+                    {/* Event Count */}
+                    {googleCalendarEvents.length > 0 && (
+                      <p className="text-slate-400 text-sm">
+                        {googleCalendarEvents.length} event{googleCalendarEvents.length !== 1 ? 's' : ''} from Google Calendar
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  /* Not Connected State */
                   <button
-                    onClick={() => window.open('https://calendar.google.com', '_blank')}
-                    className="flex items-center gap-2 text-slate-400 hover:text-white transition"
+                    onClick={connectGoogleCalendar}
+                    disabled={calendarLoading}
+                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg disabled:opacity-50"
                   >
-                    <ExternalLink className="w-4 h-4" />
-                    Open in Google
+                    {calendarLoading ? (
+                      <Loader className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Globe className="w-5 h-5" />
+                        Connect Google Calendar
+                      </>
+                    )}
                   </button>
                 )}
               </div>

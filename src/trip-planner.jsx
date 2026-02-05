@@ -1512,8 +1512,8 @@ export default function TripPlanner() {
         window.gapi.load('client:auth2', async () => {
           try {
             await window.gapi.client.init({
-              apiKey: 'AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxx', // Replace with your API key
-              clientId: 'your-client-id.apps.googleusercontent.com', // Replace with your client ID
+              apiKey: 'AIzaSyB4pbBVj7Dryy3C57V2s6L4N_znGEyuib0',
+              clientId: '803115812045-l2r8qgijts7rp56shcdt422cl8kjfb62.apps.googleusercontent.com',
               discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
               scope: 'https://www.googleapis.com/auth/calendar.readonly',
             });

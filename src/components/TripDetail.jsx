@@ -193,9 +193,9 @@ const TripDetail = ({
                     <div
                       key={guest.id}
                       className="w-8 h-8 bg-white/30 backdrop-blur rounded-full flex items-center justify-center text-white font-bold text-xs border-2 border-white/50"
-                      title={guest.name}
+                      title={guest.name || guest.email || 'Guest'}
                     >
-                      {guest.name.charAt(0)}
+                      {(guest.name || guest.email || '?').charAt(0)}
                     </div>
                   ))}
                   {trip.guests.length > 5 && (

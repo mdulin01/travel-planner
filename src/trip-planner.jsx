@@ -3034,9 +3034,9 @@ export default function TripPlanner() {
                             <div
                               key={guest.id}
                               className="w-6 h-6 bg-white/30 rounded-full flex items-center justify-center text-[10px] font-bold border border-white/50"
-                              title={guest.name}
+                              title={guest.name || guest.email || 'Guest'}
                             >
-                              {guest.name.charAt(0)}
+                              {(guest.name || guest.email || '?').charAt(0)}
                             </div>
                           ))}
                         </div>

@@ -1784,11 +1784,21 @@ export default function TripPlanner() {
 
     // Add Google Calendar events
     googleCalendarEvents.forEach(event => {
+      const startDateStr = event.start.split('T')[0];
+      let endDateStr = event.end.split('T')[0];
+
+      // For all-day events, Google uses exclusive end dates, so we need to subtract 1 day
+      if (event.allDay) {
+        const endDate = parseLocalDate(endDateStr);
+        endDate.setDate(endDate.getDate() - 1);
+        endDateStr = endDate.toISOString().split('T')[0];
+      }
+
       allEvents.push({
         id: event.id,
         title: event.title,
-        start: event.start.split('T')[0],
-        end: event.end.split('T')[0],
+        start: startDateStr,
+        end: endDateStr,
         type: 'google',
         color: 'from-blue-400 to-indigo-500',
         data: event,
@@ -7339,7 +7349,21 @@ export default function TripPlanner() {
               <div className="bg-white/5 rounded-xl p-4 mb-6 border border-white/10">
                 <h3 className="text-white font-semibold text-lg">{showImportModal.title}</h3>
                 <div className="text-slate-400 text-sm mt-2 space-y-1">
-                  <p>📅 {new Date(showImportModal.start).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                  <p>📅 {(() => {
+                    const startDate = parseLocalDate(showImportModal.start.split('T')[0]);
+                    // For all-day events, Google uses exclusive end dates, so subtract 1 day
+                    const endDateRaw = showImportModal.end.split('T')[0];
+                    let endDate = parseLocalDate(endDateRaw);
+                    if (showImportModal.allDay && endDate > startDate) {
+                      endDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000); // Subtract 1 day
+                    }
+                    const isSameDay = startDate.toDateString() === endDate.toDateString();
+                    if (isSameDay) {
+                      return startDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+                    } else {
+                      return `${startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`;
+                    }
+                  })()}</p>
                   {showImportModal.location && <p>📍 {showImportModal.location}</p>}
                   {showImportModal.description && <p className="text-slate-500 truncate">📝 {showImportModal.description}</p>}
                 </div>

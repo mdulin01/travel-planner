@@ -762,6 +762,18 @@ export default function TripPlanner() {
   const [confetti, setConfetti] = useState(null); // { type: 'run' | 'week', x?, y? }
   const [weekCelebration, setWeekCelebration] = useState(null); // { weekNumber, eventName }
 
+  // ========== COLOR OPTIONS FOR IMPORT MODAL ==========
+  const tripColors = [
+    { name: 'Ocean', gradient: 'from-teal-400 to-cyan-500' },
+    { name: 'Sunset', gradient: 'from-orange-400 to-red-500' },
+    { name: 'Lavender', gradient: 'from-purple-400 to-indigo-500' },
+    { name: 'Rose', gradient: 'from-rose-400 to-pink-500' },
+    { name: 'Amber', gradient: 'from-amber-400 to-orange-500' },
+    { name: 'Emerald', gradient: 'from-green-400 to-emerald-500' },
+    { name: 'Sky', gradient: 'from-blue-400 to-indigo-500' },
+    { name: 'Coral', gradient: 'from-pink-500 to-purple-500' },
+  ];
+
   // Vibration helper - works on mobile devices
   const vibrate = (pattern) => {
     if ('vibrate' in navigator) {
@@ -4659,12 +4671,14 @@ export default function TripPlanner() {
                   </div>
                 </div>
 
-                {/* Upcoming Events Cards */}
+                {/* Upcoming Events Cards - Only show app events (trips, party events), not raw Google Calendar events */}
                 {(() => {
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
                   const allEvents = getAllCalendarEvents();
+                  // Filter out Google Calendar events from banner - only show app-native events
                   const monthEvents = allEvents.filter(event => {
+                    if (event.type === 'google') return false; // Don't show Google events in banner
                     const start = parseLocalDate(event.start);
                     const end = parseLocalDate(event.end);
                     return (start.getMonth() === calendarViewMonth.getMonth() && start.getFullYear() === calendarViewMonth.getFullYear()) ||
@@ -4698,7 +4712,7 @@ export default function TripPlanner() {
                             className={`bg-gradient-to-r ${event.color} rounded-xl p-4 flex items-center justify-between cursor-pointer hover:scale-[1.02] transition-transform shadow-lg`}
                           >
                             <div className="flex items-center gap-3">
-                              <span className="text-3xl">{event.data?.emoji || (event.type === 'travel' ? '✈️' : event.type === 'event' ? '🎉' : '📅')}</span>
+                              <span className="text-3xl">{event.type === 'google' ? '📅' : (event.data?.emoji || (event.type === 'travel' ? '✈️' : '🎉'))}</span>
                               <div className="text-white">
                                 <div className="font-bold text-lg flex items-center gap-2">
                                   {event.data?.name || event.data?.destination || event.title?.replace(/^[^\s]+ /, '') || 'Event'}
@@ -4804,7 +4818,7 @@ export default function TripPlanner() {
                                       className={`w-full h-5 md:h-6 rounded bg-gradient-to-r ${event.color} flex items-center justify-center`}
                                     >
                                       <span className="text-xs md:text-sm">
-                                        {event.data?.emoji || (event.type === 'travel' ? '✈️' : '🎉')}
+                                        {event.type === 'google' ? '📅' : (event.data?.emoji || (event.type === 'travel' ? '✈️' : '🎉'))}
                                       </span>
                                     </div>
                                   ))}

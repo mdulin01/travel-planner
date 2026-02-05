@@ -2181,8 +2181,7 @@ export default function TripPlanner() {
         )}
       </div>
 
-      {/* Interactive Anchor - outside pointer-events-none container */}
-      <DroppableAnchor className="absolute top-40 right-40 z-10" />
+      {/* Anchor removed for cleaner UI */}
 
       {/* Header */}
       <header className="relative z-10 pt-8 pb-4 px-6">
@@ -6726,19 +6725,7 @@ export default function TripPlanner() {
         </div>
       )}
 
-      {/* Bouncing Emoji Overlay */}
-      {bouncingEmoji && (
-        <div
-          className="fixed pointer-events-none z-[100] text-6xl transition-none"
-          style={{
-            left: bouncingEmoji.x,
-            top: bouncingEmoji.y,
-            transform: 'translate(-50%, -50%)',
-          }}
-        >
-          {bouncingEmoji.emoji}
-        </div>
-      )}
+      {/* Bouncing emoji removed for cleaner UI */}
 
       {/* AddModal - rendered at root level for stability */}
       {showAddModal && (

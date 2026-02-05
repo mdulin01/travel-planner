@@ -730,6 +730,7 @@ export default function TripPlanner() {
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [showImportModal, setShowImportModal] = useState(null); // Google Calendar event to import
   const [importSettings, setImportSettings] = useState({ type: 'event', color: 'from-blue-400 to-indigo-500' });
+  const [calendarViewMonth, setCalendarViewMonth] = useState(new Date()); // Month for calendar section view
   const [showRandomExperience, setShowRandomExperience] = useState(false);
   const [easterEggClicks, setEasterEggClicks] = useState(0);
   const [showDisneyMagic, setShowDisneyMagic] = useState(false);
@@ -4481,176 +4482,241 @@ export default function TripPlanner() {
           {/* ========== CALENDAR SECTION ========== */}
           {activeSection === 'calendar' && (
             <div className="mt-8">
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-white mb-2">📅 Calendar</h2>
-                <p className="text-slate-400">All your adventures & events in one place</p>
+              <div className="text-center mb-6">
+                <p className="text-slate-400">All our adventures, events, and memories in one place</p>
               </div>
 
-              {/* Calendar Controls */}
-              <div className="flex justify-center gap-3 mb-8">
-                {!calendarConnected ? (
+              {/* Google Calendar Buttons */}
+              <div className="flex flex-col items-center gap-3 mb-8">
+                <button
+                  onClick={connectGoogleCalendar}
+                  disabled={calendarLoading}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg disabled:opacity-50"
+                >
+                  {calendarLoading ? (
+                    <Loader className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Globe className="w-5 h-5" />
+                      {calendarConnected ? 'Refresh Google Calendar' : 'Connect Google Calendar'}
+                    </>
+                  )}
+                </button>
+                {calendarConnected && (
                   <button
-                    onClick={connectGoogleCalendar}
-                    disabled={calendarLoading}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg disabled:opacity-50"
+                    onClick={() => window.open('https://calendar.google.com', '_blank')}
+                    className="flex items-center gap-2 text-slate-400 hover:text-white transition"
                   >
-                    {calendarLoading ? (
-                      <Loader className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" viewBox="0 0 24 24">
-                          <path fill="currentColor" d="M19.5 3h-3V1.5h-1.5V3h-6V1.5H7.5V3h-3C3.675 3 3 3.675 3 4.5v15c0 .825.675 1.5 1.5 1.5h15c.825 0 1.5-.675 1.5-1.5v-15c0-.825-.675-1.5-1.5-1.5zm0 16.5h-15v-12h15v12zM7.5 9h3v3h-3V9zm4.5 0h3v3h-3V9zm4.5 0h3v3h-3V9z"/>
-                        </svg>
-                        Connect Google Calendar
-                      </>
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={fetchGoogleCalendarEvents}
-                    disabled={calendarLoading}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-400 to-emerald-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg disabled:opacity-50"
-                  >
-                    {calendarLoading ? (
-                      <Loader className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          <path d="M9 12l2 2 4-4" />
-                        </svg>
-                        Refresh Calendar
-                      </>
-                    )}
+                    <ExternalLink className="w-4 h-4" />
+                    Open in Google
                   </button>
                 )}
               </div>
 
-              {/* Legend */}
-              <div className="flex justify-center gap-4 mb-6 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-gradient-to-r from-teal-400 to-cyan-500"></div>
-                  <span className="text-white/70 text-sm">Travel</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-gradient-to-r from-amber-400 to-orange-500"></div>
-                  <span className="text-white/70 text-sm">Events</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded bg-gradient-to-r from-blue-400 to-indigo-500"></div>
-                  <span className="text-white/70 text-sm">Google Calendar</span>
-                </div>
-              </div>
-
-              {/* Calendar Events List */}
-              <div className="space-y-3">
-                {getAllCalendarEvents().length === 0 ? (
-                  <div className="bg-white/10 rounded-2xl p-8 text-center border border-white/20">
-                    <div className="text-5xl mb-4">📆</div>
-                    <p className="text-slate-400">No upcoming events</p>
-                    <p className="text-slate-500 text-sm mt-2">Add some trips or connect Google Calendar!</p>
+              {/* Calendar Card */}
+              <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-6 border border-white/10">
+                {/* Calendar Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2 text-white">
+                    <Calendar className="w-5 h-5 text-blue-400" />
+                    <span className="text-xl font-bold">
+                      {months[calendarViewMonth.getMonth()]} {calendarViewMonth.getFullYear()}
+                    </span>
                   </div>
-                ) : (
-                  getAllCalendarEvents().map(event => {
-                    const startDate = new Date(event.start);
-                    const endDate = new Date(event.end);
-                    const isMultiDay = event.start !== event.end;
-                    const daysUntil = Math.ceil((startDate - new Date()) / (1000 * 60 * 60 * 24));
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCalendarViewMonth(new Date(calendarViewMonth.getFullYear(), calendarViewMonth.getMonth() - 1, 1))}
+                      className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => setCalendarViewMonth(new Date())}
+                      className="px-3 py-1 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition text-sm"
+                    >
+                      Today
+                    </button>
+                    <button
+                      onClick={() => setCalendarViewMonth(new Date(calendarViewMonth.getFullYear(), calendarViewMonth.getMonth() + 1, 1))}
+                      className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
 
-                    return (
-                      <div
-                        key={event.id}
-                        onClick={() => {
-                          if (event.type === 'google') {
-                            setShowImportModal(event.data);
-                          } else if (event.type === 'travel') {
-                            setActiveSection('travel');
-                            setSelectedTrip(event.data);
-                          } else if (event.type === 'event') {
-                            setActiveSection('events');
-                            setSelectedPartyEvent(event.data);
-                          }
-                        }}
-                        className={`bg-gradient-to-r ${event.color} p-0.5 rounded-2xl cursor-pointer hover:scale-[1.02] transition shadow-lg`}
-                      >
-                        <div className="bg-slate-900/90 backdrop-blur rounded-2xl p-4 flex items-center gap-4">
-                          {/* Date Badge */}
-                          <div className="text-center min-w-[60px]">
-                            <div className="text-xs text-white/60 uppercase">
-                              {startDate.toLocaleDateString('en-US', { month: 'short' })}
-                            </div>
-                            <div className="text-2xl font-bold text-white">
-                              {startDate.getDate()}
-                            </div>
-                            {isMultiDay && (
-                              <div className="text-xs text-white/60">
-                                - {endDate.getDate()}
+                {/* Upcoming Events Cards */}
+                {(() => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const allEvents = getAllCalendarEvents();
+                  const monthEvents = allEvents.filter(event => {
+                    const start = new Date(event.start);
+                    const end = new Date(event.end);
+                    return (start.getMonth() === calendarViewMonth.getMonth() && start.getFullYear() === calendarViewMonth.getFullYear()) ||
+                           (end.getMonth() === calendarViewMonth.getMonth() && end.getFullYear() === calendarViewMonth.getFullYear());
+                  });
+
+                  if (monthEvents.length === 0) return null;
+
+                  return (
+                    <div className="mb-6 space-y-3">
+                      {monthEvents.slice(0, 5).map(event => {
+                        const startDate = new Date(event.start);
+                        const daysUntil = Math.ceil((startDate - today) / (1000 * 60 * 60 * 24));
+                        const isMultiDay = event.start !== event.end;
+                        const endDate = new Date(event.end);
+
+                        return (
+                          <div
+                            key={event.id}
+                            onClick={() => {
+                              if (event.type === 'google') {
+                                setShowImportModal(event.data);
+                              } else if (event.type === 'travel') {
+                                setActiveSection('travel');
+                                setSelectedTrip(event.data);
+                              } else if (event.type === 'event') {
+                                setActiveSection('events');
+                                setSelectedPartyEvent(event.data);
+                              }
+                            }}
+                            className={`bg-gradient-to-r ${event.color} rounded-xl p-4 flex items-center justify-between cursor-pointer hover:scale-[1.02] transition-transform shadow-lg`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-3xl">{event.data?.emoji || (event.type === 'travel' ? '✈️' : event.type === 'event' ? '🎉' : '📅')}</span>
+                              <div className="text-white">
+                                <div className="font-bold text-lg flex items-center gap-2">
+                                  {event.title.replace(/^[^\s]+ /, '')}
+                                  {event.data?.special && <span className="text-lg">💕🌈</span>}
+                                </div>
+                                <div className="text-sm opacity-90">
+                                  {isMultiDay ? (
+                                    `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                                  ) : (
+                                    `${startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}${event.data?.time ? ` at ${event.data.time}` : ''}`
+                                  )}
+                                </div>
                               </div>
-                            )}
-                          </div>
-
-                          {/* Event Info */}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-white font-semibold truncate">{event.title}</h3>
-                            <div className="flex items-center gap-2 text-sm text-white/60">
-                              <span className={`px-2 py-0.5 rounded-full text-xs ${
-                                event.type === 'travel' ? 'bg-teal-500/30 text-teal-300' :
-                                event.type === 'event' ? 'bg-amber-500/30 text-amber-300' :
-                                'bg-blue-500/30 text-blue-300'
-                              }`}>
-                                {event.type === 'travel' ? '✈️ Trip' :
-                                 event.type === 'event' ? '🎉 Event' : '📅 Google'}
-                              </span>
-                              {event.data?.location && (
-                                <span className="truncate">📍 {event.data.location}</span>
+                            </div>
+                            <div className="text-white text-right">
+                              {daysUntil > 0 ? (
+                                <span className="opacity-90">{daysUntil} days away</span>
+                              ) : daysUntil === 0 ? (
+                                <span className="font-bold">Today! 🎉</span>
+                              ) : (
+                                <span className="opacity-70">Past</span>
                               )}
                             </div>
                           </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
 
-                          {/* Days Until */}
-                          <div className="text-right">
-                            {daysUntil > 0 ? (
-                              <div className="text-white/60 text-sm">
-                                <span className="text-white font-semibold">{daysUntil}</span> days
+                {/* Calendar Grid */}
+                <div className="grid grid-cols-7 gap-1 mb-1">
+                  {days.map(day => (
+                    <div key={day} className="text-center text-slate-400 text-xs font-semibold py-2 uppercase tracking-wide">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1 border border-white/10 rounded-xl overflow-hidden">
+                  {(() => {
+                    const { firstDay, daysInMonth } = getDaysInMonth(calendarViewMonth);
+                    const allEvents = getAllCalendarEvents();
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    // Helper to get events on a specific day
+                    const getEventsOnDay = (day) => {
+                      const checkDate = new Date(calendarViewMonth.getFullYear(), calendarViewMonth.getMonth(), day);
+                      return allEvents.filter(event => {
+                        const start = new Date(event.start);
+                        start.setHours(0, 0, 0, 0);
+                        const end = new Date(event.end);
+                        end.setHours(0, 0, 0, 0);
+                        return checkDate >= start && checkDate <= end;
+                      });
+                    };
+
+                    return (
+                      <>
+                        {[...Array(firstDay)].map((_, i) => (
+                          <div key={`empty-${i}`} className="h-16 md:h-20 bg-white/5 border-r border-b border-white/5" />
+                        ))}
+                        {[...Array(daysInMonth)].map((_, i) => {
+                          const day = i + 1;
+                          const checkDate = new Date(calendarViewMonth.getFullYear(), calendarViewMonth.getMonth(), day);
+                          const isToday = checkDate.toDateString() === today.toDateString();
+                          const eventsOnDay = getEventsOnDay(day);
+                          const hasEvents = eventsOnDay.length > 0;
+
+                          return (
+                            <div
+                              key={day}
+                              onClick={() => {
+                                if (eventsOnDay.length === 1) {
+                                  const event = eventsOnDay[0];
+                                  if (event.type === 'google') {
+                                    setShowImportModal(event.data);
+                                  } else if (event.type === 'travel') {
+                                    setActiveSection('travel');
+                                    setSelectedTrip(event.data);
+                                  } else if (event.type === 'event') {
+                                    setActiveSection('events');
+                                    setSelectedPartyEvent(event.data);
+                                  }
+                                }
+                              }}
+                              className={`h-16 md:h-20 p-1 relative border-r border-b border-white/5 transition-all ${
+                                hasEvents ? 'cursor-pointer hover:bg-white/10' : ''
+                              } ${isToday ? 'bg-blue-500/20' : 'bg-white/5'}`}
+                            >
+                              {/* Date number */}
+                              <div className={`text-xs font-medium ${
+                                isToday ? 'text-blue-400 font-bold' : hasEvents ? 'text-white' : 'text-slate-500'
+                              }`}>
+                                {day}
                               </div>
-                            ) : daysUntil === 0 ? (
-                              <div className="text-green-400 font-semibold text-sm">Today!</div>
-                            ) : (
-                              <div className="text-white/40 text-sm">Past</div>
-                            )}
-                            {event.type === 'google' && (
-                              <div className="text-xs text-blue-400 mt-1">Click to import</div>
-                            )}
-                          </div>
 
-                          {/* Arrow indicator */}
-                          <ChevronRight className="w-5 h-5 text-white/40" />
-                        </div>
-                      </div>
+                              {/* Event indicators */}
+                              {hasEvents && (
+                                <div className="absolute inset-1 top-5 flex flex-col items-center justify-center gap-0.5">
+                                  {eventsOnDay.slice(0, 2).map((event, idx) => (
+                                    <div
+                                      key={idx}
+                                      className={`w-full h-5 md:h-6 rounded bg-gradient-to-r ${event.color} flex items-center justify-center`}
+                                    >
+                                      <span className="text-xs md:text-sm">
+                                        {event.data?.emoji || (event.type === 'travel' ? '✈️' : '🎉')}
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {eventsOnDay.length > 2 && (
+                                    <div className="text-xs text-slate-400">+{eventsOnDay.length - 2}</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </>
                     );
-                  })
-                )}
+                  })()}
+                </div>
               </div>
 
               {/* Google Calendar status */}
               {calendarConnected && googleCalendarEvents.length > 0 && (
-                <div className="mt-6 text-center">
+                <div className="mt-4 text-center">
                   <p className="text-slate-400 text-sm">
                     🔗 {googleCalendarEvents.length} events synced from Google Calendar
                   </p>
                 </div>
               )}
-
-              {/* Love Note */}
-              <div className="text-center mt-12">
-                <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-indigo-500/20 rounded-full border border-indigo-500/30">
-                  <span className="text-xl">📅</span>
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-purple-300 to-indigo-300 font-medium">
-                    Planning adventures together, one day at a time
-                  </span>
-                  <span className="text-xl">💕</span>
-                </div>
-              </div>
             </div>
           )}
           {/* ========== END CALENDAR SECTION ========== */}

@@ -1689,7 +1689,7 @@ export default function TripPlanner() {
       if (event.date) {
         allEvents.push({
           id: event.id,
-          title: `${event.emoji || '🎉'} ${event.title}`,
+          title: `${event.emoji || '🎉'} ${event.name || event.title || 'Event'}`,
           start: event.date,
           end: event.date,
           type: 'event',
@@ -4587,7 +4587,7 @@ export default function TripPlanner() {
                               <span className="text-3xl">{event.data?.emoji || (event.type === 'travel' ? '✈️' : event.type === 'event' ? '🎉' : '📅')}</span>
                               <div className="text-white">
                                 <div className="font-bold text-lg flex items-center gap-2">
-                                  {event.title.replace(/^[^\s]+ /, '')}
+                                  {event.data?.name || event.data?.destination || event.title?.replace(/^[^\s]+ /, '') || 'Event'}
                                   {event.data?.special && <span className="text-lg">💕🌈</span>}
                                 </div>
                                 <div className="text-sm opacity-90">

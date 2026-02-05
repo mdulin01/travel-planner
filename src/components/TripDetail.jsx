@@ -120,24 +120,46 @@ const TripDetail = ({
     showToast('Opening Google Calendar...', 'info');
   };
 
-  // Use parent-level state for date editing to prevent reset on re-renders
-  const isEditingDates = editingTripDates?.tripId === trip.id;
+  // Use parent-level state for editing to prevent reset on re-renders
+  const isEditing = editingTripDates?.tripId === trip.id;
   const editedStart = editingTripDates?.start || trip.dates.start;
   const editedEnd = editingTripDates?.end || trip.dates.end;
+  const editedName = editingTripDates?.name ?? trip.destination;
+  const editedCoverImage = editingTripDates?.coverImage ?? (trip.coverImage || '');
 
-  const handleStartEditDates = () => {
-    setEditingTripDates({ tripId: trip.id, start: trip.dates.start, end: trip.dates.end });
+  const handleStartEdit = () => {
+    setEditingTripDates({
+      tripId: trip.id,
+      start: trip.dates.start,
+      end: trip.dates.end,
+      name: trip.destination,
+      coverImage: trip.coverImage || ''
+    });
   };
 
-  const handleCancelEditDates = () => {
+  const handleCancelEdit = () => {
     setEditingTripDates(null);
   };
 
-  const handleSaveDates = async () => {
-    const updatedTrip = await updateTripDates(trip.id, editedStart, editedEnd);
-    if (updatedTrip) {
-      setSelectedTrip(updatedTrip);
-    }
+  const handleSave = async () => {
+    const updatedTrip = {
+      ...trip,
+      destination: editedName,
+      coverImage: editedCoverImage,
+      dates: { start: editedStart, end: editedEnd }
+    };
+
+    // Update trips state and save to Firestore
+    setTrips(prev => {
+      const newTrips = prev.map(t => t.id === trip.id ? updatedTrip : t);
+      saveToFirestore(newTrips, null, null);
+      return newTrips;
+    });
+
+    // Update selected trip to show changes immediately
+    setSelectedTrip(updatedTrip);
+
+    showToast('Trip updated!', 'success');
     setEditingTripDates(null);
   };
 
@@ -166,9 +188,9 @@ const TripDetail = ({
                     <Users className="w-5 h-5" />
                   </button>
                   <button
-                    onClick={() => isEditingDates ? handleCancelEditDates() : handleStartEditDates()}
+                    onClick={() => isEditing ? handleCancelEdit() : handleStartEdit()}
                     className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition"
-                    title="Edit dates"
+                    title="Edit trip"
                   >
                     <Pencil className="w-5 h-5" />
                   </button>
@@ -182,7 +204,17 @@ const TripDetail = ({
               </button>
             </div>
             <div className="text-6xl mb-4">{trip.emoji}</div>
-            <h2 className="text-4xl md:text-5xl font-bold mb-2">{trip.destination}</h2>
+            {isEditing ? (
+              <input
+                type="text"
+                value={editedName}
+                onChange={(e) => setEditingTripDates(prev => ({ ...prev, name: e.target.value }))}
+                className="text-4xl md:text-5xl font-bold mb-2 bg-white/20 border border-white/30 rounded-xl px-4 py-2 w-full text-white placeholder-white/50 focus:outline-none focus:border-white/60"
+                placeholder="Trip destination"
+              />
+            ) : (
+              <h2 className="text-4xl md:text-5xl font-bold mb-2">{trip.destination}</h2>
+            )}
 
             {/* Guest Avatars */}
             {trip.guests && trip.guests.length > 0 && (
@@ -215,35 +247,64 @@ const TripDetail = ({
               </div>
             )}
 
-            {isEditingDates ? (
-              <div className="flex flex-wrap items-center gap-3 mt-2">
-                <input
-                  type="date"
-                  value={editedStart}
-                  onChange={(e) => setEditingTripDates(prev => ({ ...prev, start: e.target.value }))}
-                  className="px-3 py-2 rounded-lg bg-white/20 text-white border border-white/30 focus:outline-none focus:border-white/60"
-                />
-                <span className="text-white/80">to</span>
-                <input
-                  type="date"
-                  value={editedEnd}
-                  onChange={(e) => setEditingTripDates(prev => ({ ...prev, end: e.target.value }))}
-                  className="px-3 py-2 rounded-lg bg-white/20 text-white border border-white/30 focus:outline-none focus:border-white/60"
-                />
-                <button
-                  onClick={handleSaveDates}
-                  className="flex items-center gap-1 px-4 py-2 bg-white/30 hover:bg-white/40 rounded-lg font-medium transition"
-                >
-                  <Check className="w-4 h-4" />
-                  Save
-                </button>
-                <button
-                  onClick={handleCancelEditDates}
-                  className="flex items-center gap-1 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-medium transition"
-                >
-                  <X className="w-4 h-4" />
-                  Cancel
-                </button>
+            {isEditing ? (
+              <div className="space-y-4 mt-4">
+                {/* Dates */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    type="date"
+                    value={editedStart}
+                    onChange={(e) => setEditingTripDates(prev => ({ ...prev, start: e.target.value }))}
+                    className="px-3 py-2 rounded-lg bg-white/20 text-white border border-white/30 focus:outline-none focus:border-white/60"
+                  />
+                  <span className="text-white/80">to</span>
+                  <input
+                    type="date"
+                    value={editedEnd}
+                    onChange={(e) => setEditingTripDates(prev => ({ ...prev, end: e.target.value }))}
+                    className="px-3 py-2 rounded-lg bg-white/20 text-white border border-white/30 focus:outline-none focus:border-white/60"
+                  />
+                </div>
+
+                {/* Cover Image URL */}
+                <div>
+                  <label className="block text-white/80 text-sm mb-1">Cover Image URL</label>
+                  <input
+                    type="url"
+                    value={editedCoverImage}
+                    onChange={(e) => setEditingTripDates(prev => ({ ...prev, coverImage: e.target.value }))}
+                    placeholder="Paste image URL (e.g., from Unsplash)"
+                    className="w-full px-3 py-2 rounded-lg bg-white/20 text-white border border-white/30 focus:outline-none focus:border-white/60 placeholder-white/40"
+                  />
+                  {editedCoverImage && (
+                    <div className="mt-2 relative rounded-lg overflow-hidden h-24">
+                      <img
+                        src={editedCoverImage}
+                        alt="Cover preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Save/Cancel Buttons */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSave}
+                    className="flex items-center gap-1 px-4 py-2 bg-white/30 hover:bg-white/40 rounded-lg font-medium transition"
+                  >
+                    <Check className="w-4 h-4" />
+                    Save
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="flex items-center gap-1 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-medium transition"
+                  >
+                    <X className="w-4 h-4" />
+                    Cancel
+                  </button>
+                </div>
               </div>
             ) : (
               <p className="text-xl opacity-90">

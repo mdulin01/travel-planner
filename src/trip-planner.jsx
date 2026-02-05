@@ -726,6 +726,10 @@ export default function TripPlanner() {
   const [showLinkModal, setShowLinkModal] = useState(null); // trip id for link modal
   const [currentUser, setCurrentUser] = useState('Mike');
   const [calendarConnected, setCalendarConnected] = useState(false);
+  const [googleCalendarEvents, setGoogleCalendarEvents] = useState([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(null); // Google Calendar event to import
+  const [importSettings, setImportSettings] = useState({ type: 'event', color: 'from-blue-400 to-indigo-500' });
   const [showRandomExperience, setShowRandomExperience] = useState(false);
   const [easterEggClicks, setEasterEggClicks] = useState(0);
   const [showDisneyMagic, setShowDisneyMagic] = useState(false);
@@ -1498,6 +1502,218 @@ export default function TripPlanner() {
     return isOwner;
   };
 
+  // ========== GOOGLE CALENDAR INTEGRATION ==========
+
+  // Initialize Google Calendar API
+  const initGoogleCalendar = () => {
+    return new Promise((resolve, reject) => {
+      if (window.gapi) {
+        window.gapi.load('client:auth2', async () => {
+          try {
+            await window.gapi.client.init({
+              apiKey: 'AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxx', // Replace with your API key
+              clientId: 'your-client-id.apps.googleusercontent.com', // Replace with your client ID
+              discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
+              scope: 'https://www.googleapis.com/auth/calendar.readonly',
+            });
+            resolve(true);
+          } catch (error) {
+            console.error('Error initializing Google Calendar:', error);
+            reject(error);
+          }
+        });
+      } else {
+        reject(new Error('Google API not loaded'));
+      }
+    });
+  };
+
+  // Connect to Google Calendar
+  const connectGoogleCalendar = async () => {
+    setCalendarLoading(true);
+    try {
+      // Check if gapi is loaded
+      if (!window.gapi) {
+        // Load the Google API script dynamically
+        const script = document.createElement('script');
+        script.src = 'https://apis.google.com/js/api.js';
+        script.onload = async () => {
+          await initGoogleCalendar();
+          const authInstance = window.gapi.auth2.getAuthInstance();
+          await authInstance.signIn();
+          setCalendarConnected(true);
+          await fetchGoogleCalendarEvents();
+        };
+        document.body.appendChild(script);
+      } else {
+        await initGoogleCalendar();
+        const authInstance = window.gapi.auth2.getAuthInstance();
+        if (!authInstance.isSignedIn.get()) {
+          await authInstance.signIn();
+        }
+        setCalendarConnected(true);
+        await fetchGoogleCalendarEvents();
+      }
+    } catch (error) {
+      console.error('Error connecting to Google Calendar:', error);
+      showToast('Failed to connect to Google Calendar', 'error');
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  // Fetch events from Google Calendar
+  const fetchGoogleCalendarEvents = async () => {
+    setCalendarLoading(true);
+    try {
+      if (!window.gapi?.client?.calendar) {
+        throw new Error('Google Calendar API not initialized');
+      }
+
+      const now = new Date();
+      const threeMonthsLater = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+      const response = await window.gapi.client.calendar.events.list({
+        calendarId: 'primary',
+        timeMin: now.toISOString(),
+        timeMax: threeMonthsLater.toISOString(),
+        showDeleted: false,
+        singleEvents: true,
+        maxResults: 100,
+        orderBy: 'startTime',
+      });
+
+      const events = response.result.items.map(event => ({
+        id: event.id,
+        title: event.summary || 'Untitled Event',
+        description: event.description || '',
+        location: event.location || '',
+        start: event.start.dateTime || event.start.date,
+        end: event.end.dateTime || event.end.date,
+        allDay: !event.start.dateTime,
+        source: 'google',
+        color: 'from-blue-400 to-indigo-500',
+        htmlLink: event.htmlLink,
+      }));
+
+      setGoogleCalendarEvents(events);
+      showToast(`Loaded ${events.length} events from Google Calendar`, 'success');
+    } catch (error) {
+      console.error('Error fetching Google Calendar events:', error);
+      showToast('Failed to fetch calendar events', 'error');
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  // Import Google Calendar event as trip, event, or memory
+  const importGoogleEvent = (googleEvent, settings) => {
+    const { type, color } = settings;
+
+    if (type === 'travel') {
+      const newTrip = {
+        id: `trip-${Date.now()}`,
+        destination: googleEvent.title,
+        emoji: '✈️',
+        dates: {
+          start: googleEvent.start.split('T')[0],
+          end: googleEvent.end.split('T')[0],
+        },
+        color: color,
+        accent: 'bg-teal-500',
+        special: googleEvent.description,
+        status: 'upcoming',
+        guests: [],
+      };
+      setTrips(prev => [...prev, newTrip]);
+      saveToFirestore([...trips, newTrip], wishlist, tripDetails);
+      showToast(`Added "${googleEvent.title}" as a trip!`, 'success');
+    } else if (type === 'event') {
+      const newEvent = {
+        id: `event-${Date.now()}`,
+        title: googleEvent.title,
+        emoji: '🎉',
+        date: googleEvent.start.split('T')[0],
+        time: googleEvent.start.includes('T') ? googleEvent.start.split('T')[1].substring(0, 5) : '',
+        location: googleEvent.location,
+        description: googleEvent.description,
+        color: color,
+        guests: [],
+        tasks: [],
+        photos: [],
+      };
+      setPartyEvents(prev => [...prev, newEvent]);
+      savePartyEventsToFirestore([...partyEvents, newEvent]);
+      showToast(`Added "${googleEvent.title}" as an event!`, 'success');
+    } else if (type === 'memory') {
+      const newMemory = {
+        id: `memory-${Date.now()}`,
+        title: googleEvent.title,
+        date: googleEvent.start.split('T')[0],
+        category: 'Milestone',
+        description: googleEvent.description,
+        location: googleEvent.location,
+        photos: [],
+        isSpecial: false,
+      };
+      setMemories(prev => [...prev, newMemory]);
+      saveMemoriesToFirestore([...memories, newMemory]);
+      showToast(`Added "${googleEvent.title}" as a memory!`, 'success');
+    }
+
+    setShowImportModal(null);
+  };
+
+  // Get all calendar events (trips + events + google)
+  const getAllCalendarEvents = () => {
+    const allEvents = [];
+
+    // Add trips
+    trips.forEach(trip => {
+      if (trip.dates?.start) {
+        allEvents.push({
+          id: trip.id,
+          title: `${trip.emoji} ${trip.destination}`,
+          start: trip.dates.start,
+          end: trip.dates.end,
+          type: 'travel',
+          color: trip.color || 'from-teal-400 to-cyan-500',
+          data: trip,
+        });
+      }
+    });
+
+    // Add party events
+    partyEvents.forEach(event => {
+      if (event.date) {
+        allEvents.push({
+          id: event.id,
+          title: `${event.emoji || '🎉'} ${event.title}`,
+          start: event.date,
+          end: event.date,
+          type: 'event',
+          color: event.color || 'from-amber-400 to-orange-500',
+          data: event,
+        });
+      }
+    });
+
+    // Add Google Calendar events
+    googleCalendarEvents.forEach(event => {
+      allEvents.push({
+        id: event.id,
+        title: event.title,
+        start: event.start.split('T')[0],
+        end: event.end.split('T')[0],
+        type: 'google',
+        color: 'from-blue-400 to-indigo-500',
+        data: event,
+      });
+    });
+
+    return allEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
+  };
+
   // Save to Firestore whenever data changes
   const saveToFirestore = async (newTrips, newWishlist, newTripDetails, newMemories) => {
     if (!user) return;
@@ -2263,15 +2479,38 @@ export default function TripPlanner() {
           )}
 
           {/* Section Navigation */}
-          <div className="mt-6 flex gap-2 flex-wrap">
+          <div className="mt-6 flex gap-2 flex-wrap items-center">
+            {/* Coming Soon dropdown for Life Planning & Business */}
+            <div className="relative group">
+              <button
+                className="flex items-center gap-1 px-3 py-2.5 bg-white/10 text-white/70 hover:bg-white/20 hover:text-white rounded-full font-semibold transition shadow-lg"
+                title="Coming Soon"
+              >
+                🚧
+              </button>
+              <div className="absolute left-0 top-full mt-2 bg-slate-800 rounded-xl shadow-xl border border-white/10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[160px]">
+                <button
+                  onClick={() => setActiveSection('lifePlanning')}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white rounded-t-xl transition"
+                >
+                  🎯 Life Planning
+                </button>
+                <button
+                  onClick={() => setActiveSection('business')}
+                  className="w-full flex items-center gap-2 px-4 py-3 text-white/70 hover:bg-white/10 hover:text-white rounded-b-xl transition"
+                >
+                  💼 Business
+                </button>
+              </div>
+            </div>
+
+            {/* Main navigation buttons */}
             {[
               { id: 'home', label: 'Home', emoji: '🏠', gradient: 'from-pink-500 to-purple-500' },
               { id: 'travel', label: 'Travel', emoji: '✈️', gradient: 'from-teal-400 to-cyan-500' },
+              { id: 'calendar', label: 'Calendar', emoji: '📅', gradient: 'from-blue-400 to-indigo-500' },
               { id: 'fitness', label: 'Fitness', emoji: '🏃', gradient: 'from-orange-400 to-red-500' },
-              { id: 'nutrition', label: 'Nutrition', emoji: '🥗', gradient: 'from-green-400 to-emerald-500' },
               { id: 'events', label: 'Events', emoji: '🎉', gradient: 'from-amber-400 to-orange-500' },
-              { id: 'lifePlanning', label: 'Life Planning', emoji: '🎯', gradient: 'from-purple-400 to-indigo-500' },
-              { id: 'business', label: 'Business', emoji: '💼', gradient: 'from-slate-400 to-zinc-500' },
               { id: 'memories', label: 'Memories', emoji: '💝', gradient: 'from-rose-400 to-pink-500' },
             ].map(section => (
               <button
@@ -4238,6 +4477,183 @@ export default function TripPlanner() {
             </div>
           )}
           {/* ========== END FITNESS SECTION ========== */}
+
+          {/* ========== CALENDAR SECTION ========== */}
+          {activeSection === 'calendar' && (
+            <div className="mt-8">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold text-white mb-2">📅 Calendar</h2>
+                <p className="text-slate-400">All your adventures & events in one place</p>
+              </div>
+
+              {/* Calendar Controls */}
+              <div className="flex justify-center gap-3 mb-8">
+                {!calendarConnected ? (
+                  <button
+                    onClick={connectGoogleCalendar}
+                    disabled={calendarLoading}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg disabled:opacity-50"
+                  >
+                    {calendarLoading ? (
+                      <Loader className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" viewBox="0 0 24 24">
+                          <path fill="currentColor" d="M19.5 3h-3V1.5h-1.5V3h-6V1.5H7.5V3h-3C3.675 3 3 3.675 3 4.5v15c0 .825.675 1.5 1.5 1.5h15c.825 0 1.5-.675 1.5-1.5v-15c0-.825-.675-1.5-1.5-1.5zm0 16.5h-15v-12h15v12zM7.5 9h3v3h-3V9zm4.5 0h3v3h-3V9zm4.5 0h3v3h-3V9z"/>
+                        </svg>
+                        Connect Google Calendar
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={fetchGoogleCalendarEvents}
+                    disabled={calendarLoading}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-400 to-emerald-500 text-white font-semibold rounded-full hover:opacity-90 transition shadow-lg disabled:opacity-50"
+                  >
+                    {calendarLoading ? (
+                      <Loader className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <path d="M9 12l2 2 4-4" />
+                        </svg>
+                        Refresh Calendar
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Legend */}
+              <div className="flex justify-center gap-4 mb-6 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-gradient-to-r from-teal-400 to-cyan-500"></div>
+                  <span className="text-white/70 text-sm">Travel</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-gradient-to-r from-amber-400 to-orange-500"></div>
+                  <span className="text-white/70 text-sm">Events</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+                  <span className="text-white/70 text-sm">Google Calendar</span>
+                </div>
+              </div>
+
+              {/* Calendar Events List */}
+              <div className="space-y-3">
+                {getAllCalendarEvents().length === 0 ? (
+                  <div className="bg-white/10 rounded-2xl p-8 text-center border border-white/20">
+                    <div className="text-5xl mb-4">📆</div>
+                    <p className="text-slate-400">No upcoming events</p>
+                    <p className="text-slate-500 text-sm mt-2">Add some trips or connect Google Calendar!</p>
+                  </div>
+                ) : (
+                  getAllCalendarEvents().map(event => {
+                    const startDate = new Date(event.start);
+                    const endDate = new Date(event.end);
+                    const isMultiDay = event.start !== event.end;
+                    const daysUntil = Math.ceil((startDate - new Date()) / (1000 * 60 * 60 * 24));
+
+                    return (
+                      <div
+                        key={event.id}
+                        onClick={() => {
+                          if (event.type === 'google') {
+                            setShowImportModal(event.data);
+                          } else if (event.type === 'travel') {
+                            setActiveSection('travel');
+                            setSelectedTrip(event.data);
+                          } else if (event.type === 'event') {
+                            setActiveSection('events');
+                            setSelectedPartyEvent(event.data);
+                          }
+                        }}
+                        className={`bg-gradient-to-r ${event.color} p-0.5 rounded-2xl cursor-pointer hover:scale-[1.02] transition shadow-lg`}
+                      >
+                        <div className="bg-slate-900/90 backdrop-blur rounded-2xl p-4 flex items-center gap-4">
+                          {/* Date Badge */}
+                          <div className="text-center min-w-[60px]">
+                            <div className="text-xs text-white/60 uppercase">
+                              {startDate.toLocaleDateString('en-US', { month: 'short' })}
+                            </div>
+                            <div className="text-2xl font-bold text-white">
+                              {startDate.getDate()}
+                            </div>
+                            {isMultiDay && (
+                              <div className="text-xs text-white/60">
+                                - {endDate.getDate()}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Event Info */}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-white font-semibold truncate">{event.title}</h3>
+                            <div className="flex items-center gap-2 text-sm text-white/60">
+                              <span className={`px-2 py-0.5 rounded-full text-xs ${
+                                event.type === 'travel' ? 'bg-teal-500/30 text-teal-300' :
+                                event.type === 'event' ? 'bg-amber-500/30 text-amber-300' :
+                                'bg-blue-500/30 text-blue-300'
+                              }`}>
+                                {event.type === 'travel' ? '✈️ Trip' :
+                                 event.type === 'event' ? '🎉 Event' : '📅 Google'}
+                              </span>
+                              {event.data?.location && (
+                                <span className="truncate">📍 {event.data.location}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Days Until */}
+                          <div className="text-right">
+                            {daysUntil > 0 ? (
+                              <div className="text-white/60 text-sm">
+                                <span className="text-white font-semibold">{daysUntil}</span> days
+                              </div>
+                            ) : daysUntil === 0 ? (
+                              <div className="text-green-400 font-semibold text-sm">Today!</div>
+                            ) : (
+                              <div className="text-white/40 text-sm">Past</div>
+                            )}
+                            {event.type === 'google' && (
+                              <div className="text-xs text-blue-400 mt-1">Click to import</div>
+                            )}
+                          </div>
+
+                          {/* Arrow indicator */}
+                          <ChevronRight className="w-5 h-5 text-white/40" />
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Google Calendar status */}
+              {calendarConnected && googleCalendarEvents.length > 0 && (
+                <div className="mt-6 text-center">
+                  <p className="text-slate-400 text-sm">
+                    🔗 {googleCalendarEvents.length} events synced from Google Calendar
+                  </p>
+                </div>
+              )}
+
+              {/* Love Note */}
+              <div className="text-center mt-12">
+                <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-indigo-500/20 rounded-full border border-indigo-500/30">
+                  <span className="text-xl">📅</span>
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-purple-300 to-indigo-300 font-medium">
+                    Planning adventures together, one day at a time
+                  </span>
+                  <span className="text-xl">💕</span>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* ========== END CALENDAR SECTION ========== */}
 
           {/* ========== NUTRITION SECTION ========== */}
           {activeSection === 'nutrition' && (
@@ -6659,6 +7075,95 @@ export default function TripPlanner() {
           updateItem={updateItem}
           editItem={showAddModal.editItem}
         />
+      )}
+
+      {/* Google Calendar Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white">Import Event</h2>
+                <button
+                  onClick={() => setShowImportModal(null)}
+                  className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {/* Event Preview */}
+              <div className="bg-white/5 rounded-xl p-4 mb-6 border border-white/10">
+                <h3 className="text-white font-semibold text-lg">{showImportModal.title}</h3>
+                <div className="text-slate-400 text-sm mt-2 space-y-1">
+                  <p>📅 {new Date(showImportModal.start).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                  {showImportModal.location && <p>📍 {showImportModal.location}</p>}
+                  {showImportModal.description && <p className="text-slate-500 truncate">📝 {showImportModal.description}</p>}
+                </div>
+              </div>
+
+              {/* Import Type Selection */}
+              <div className="mb-6">
+                <label className="text-white/70 text-sm font-medium mb-3 block">Import as:</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { type: 'travel', emoji: '✈️', label: 'Trip', gradient: 'from-teal-400 to-cyan-500' },
+                    { type: 'event', emoji: '🎉', label: 'Event', gradient: 'from-amber-400 to-orange-500' },
+                    { type: 'memory', emoji: '💝', label: 'Memory', gradient: 'from-rose-400 to-pink-500' },
+                  ].map(option => (
+                    <button
+                      key={option.type}
+                      onClick={() => setImportSettings(prev => ({ ...prev, type: option.type, color: option.gradient }))}
+                      className={`p-3 rounded-xl border-2 transition ${
+                        importSettings.type === option.type
+                          ? `border-white bg-gradient-to-r ${option.gradient} text-white`
+                          : 'border-white/20 bg-white/5 text-white/70 hover:border-white/40'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">{option.emoji}</div>
+                      <div className="text-sm font-medium">{option.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Color Selection */}
+              <div className="mb-6">
+                <label className="text-white/70 text-sm font-medium mb-3 block">Color theme:</label>
+                <div className="flex flex-wrap gap-2">
+                  {tripColors.map((color, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setImportSettings(prev => ({ ...prev, color: color.gradient }))}
+                      className={`w-10 h-10 rounded-full bg-gradient-to-r ${color.gradient} border-2 transition ${
+                        importSettings.color === color.gradient ? 'border-white scale-110' : 'border-transparent hover:scale-105'
+                      }`}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowImportModal(null)}
+                  className="flex-1 px-4 py-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => importGoogleEvent(showImportModal, importSettings)}
+                  className={`flex-1 px-4 py-3 bg-gradient-to-r ${importSettings.color} text-white font-semibold rounded-xl hover:opacity-90 transition`}
+                >
+                  Import as {importSettings.type === 'travel' ? 'Trip' : importSettings.type === 'event' ? 'Event' : 'Memory'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Global Styles for Rainbow Effects */}

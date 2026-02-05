@@ -1566,7 +1566,16 @@ export default function TripPlanner() {
             setCalendarLoading(false);
             return;
           }
-          // Successfully got token
+
+          // Set the access token on gapi client
+          window.gapi.client.setToken({ access_token: tokenResponse.access_token });
+
+          // Load the Calendar API discovery doc if not already loaded
+          if (!window.gapi.client.calendar) {
+            await window.gapi.client.load('calendar', 'v3');
+          }
+
+          // Successfully connected
           setCalendarConnected(true);
           await fetchGoogleCalendarEvents();
           setCalendarLoading(false);

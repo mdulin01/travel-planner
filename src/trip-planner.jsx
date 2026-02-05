@@ -2338,7 +2338,10 @@ export default function TripPlanner() {
             }
           `}</style>
           {[...Array(confetti.type === 'week' ? 60 : 25)].map((_, i) => {
-            const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
+            // Yellow confetti for single run completion, rainbow for week completion
+            const rainbowColors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
+            const yellowColors = ['#fbbf24', '#f59e0b', '#fcd34d', '#fde68a', '#d97706']; // Shades of yellow/gold
+            const colors = confetti.type === 'week' ? rainbowColors : yellowColors;
             const color = colors[i % colors.length];
             const left = Math.random() * 100;
             const delay = Math.random() * (confetti.type === 'week' ? 1 : 0.5);
@@ -3955,10 +3958,32 @@ export default function TripPlanner() {
 
                           <div className="flex items-center justify-between mt-4">
                             <span className="text-white/60 text-sm">Click to view training plan →</span>
-                            <div className="flex gap-1">
-                              {['🏃', '💪', '🎯'].map((e, i) => (
-                                <span key={i} className="text-xl opacity-50 group-hover:opacity-100 transition">{e}</span>
-                              ))}
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const text = `🏃 Training for ${event.emoji} ${event.name}!\n\n` +
+                                    `📅 ${daysUntil > 0 ? `${daysUntil} days to go!` : 'Race day!'}\n` +
+                                    `✅ ${completedWorkouts}/${totalWorkouts} workouts completed\n` +
+                                    `📊 ${Math.round((completedWorkouts / totalWorkouts) * 100)}% progress\n\n` +
+                                    `#TrainingTogether #${event.name.replace(/[^a-zA-Z]/g, '')}`;
+                                  if (navigator.share) {
+                                    navigator.share({ title: 'Training Progress', text });
+                                  } else {
+                                    navigator.clipboard.writeText(text);
+                                    showToast('Progress copied to clipboard! 📋', 'success');
+                                  }
+                                }}
+                                className="p-2 bg-white/20 hover:bg-white/30 rounded-full transition"
+                                title="Share progress"
+                              >
+                                <Share2 className="w-4 h-4 text-white" />
+                              </button>
+                              <div className="flex gap-1">
+                                {['🏃', '💪', '🎯'].map((e, i) => (
+                                  <span key={i} className="text-xl opacity-50 group-hover:opacity-100 transition">{e}</span>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -4074,8 +4099,36 @@ export default function TripPlanner() {
                                 <div className="text-white/60 text-sm">Workouts</div>
                               </div>
                             </div>
-                            <div className="text-center text-lg text-white font-medium">
+                            <div className="text-center text-lg text-white font-medium mb-4">
                               {encouragement}
+                            </div>
+
+                            {/* Share Progress Button */}
+                            <div className="text-center">
+                              <button
+                                onClick={() => {
+                                  const eventDate = parseLocalDate(selectedFitnessEvent.date);
+                                  const today = new Date();
+                                  const daysUntil = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
+                                  const totalMiles = mikeMiles + adamMiles;
+                                  const text = `🏃 Training Update for ${selectedFitnessEvent.emoji} ${selectedFitnessEvent.name}!\n\n` +
+                                    `📅 ${daysUntil} days until race day\n` +
+                                    `✅ ${completedWeeks} weeks completed together\n` +
+                                    `🏃 ${totalMiles.toFixed(1)} miles run combined\n` +
+                                    `💪 Mike: ${mikeWorkouts} workouts | Adam: ${adamWorkouts} workouts\n\n` +
+                                    `${encouragement}\n\n#TrainingTogether #RunningPartners`;
+                                  if (navigator.share) {
+                                    navigator.share({ title: 'Training Progress', text });
+                                  } else {
+                                    navigator.clipboard.writeText(text);
+                                    showToast('Progress copied to clipboard! 📋', 'success');
+                                  }
+                                }}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/20 hover:bg-white/30 rounded-full text-white font-medium transition"
+                              >
+                                <Share2 className="w-4 h-4" />
+                                Share Progress
+                              </button>
                             </div>
                           </div>
                         );

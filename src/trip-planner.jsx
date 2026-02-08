@@ -11321,12 +11321,12 @@ export default function TripPlanner() {
 
       {/* Floating Action Button (FAB) - Quick Add - Aligned with section navigation buttons */}
       {isOwner && !initialAppMode && !showAddMemoryModal && !editingMemory && !editingTrip && !editingPartyEvent && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && !showAddTaskModal && !showSharedListModal && !showAddIdeaModal && !showAddSocialModal && !showAddHabitModal && (
-        <div className="fixed top-20 md:top-24 left-4 md:left-6 z-[90]">
+        <div className="fixed bottom-20 md:bottom-8 right-4 md:right-6 z-[90]">
           {/* FAB Menu - Compact 3x3 Grid */}
           {showAddNewMenu && (
             <>
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[89]" onClick={() => setShowAddNewMenu(false)} />
-              <div className="absolute top-16 left-0 z-[91] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
+              <div className="absolute bottom-16 right-0 z-[91] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
                 style={{ animation: 'fabGridIn 0.15s ease-out both' }}>
                 <div className="grid grid-cols-3 gap-3">
                   {[
@@ -11356,7 +11356,7 @@ export default function TripPlanner() {
               </div>
               <style>{`
                 @keyframes fabGridIn {
-                  from { opacity: 0; transform: scale(0.9) translateY(-8px); }
+                  from { opacity: 0; transform: scale(0.9) translateY(8px); }
                   to { opacity: 1; transform: scale(1) translateY(0); }
                 }
                 @keyframes fabItemIn {

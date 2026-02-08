@@ -11404,25 +11404,20 @@ export default function TripPlanner() {
                   }`}
                 >
                   {idx === 2 ? (
-                    /* Atlas figure holding up the FAB */
-                    <svg width="28" height="36" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg" className={`mb-0 transition-transform ${activeSection === section.id ? 'scale-110' : ''}`}>
-                      {/* Arms reaching up */}
-                      <path d="M8 2 L11 10 L14 8 L17 10 L20 2" stroke={activeSection === section.id ? '#f97316' : 'rgba(255,255,255,0.4)'} strokeWidth="1.8" strokeLinecap="round" fill="none" />
-                      {/* Hands */}
-                      <circle cx="8" cy="2" r="1.2" fill={activeSection === section.id ? '#f97316' : 'rgba(255,255,255,0.4)'} />
-                      <circle cx="20" cy="2" r="1.2" fill={activeSection === section.id ? '#f97316' : 'rgba(255,255,255,0.4)'} />
-                      {/* Head */}
-                      <circle cx="14" cy="11.5" r="2.5" fill={activeSection === section.id ? '#f97316' : 'rgba(255,255,255,0.4)'} />
-                      {/* Torso */}
-                      <path d="M14 14 L14 22" stroke={activeSection === section.id ? '#f97316' : 'rgba(255,255,255,0.4)'} strokeWidth="2.2" strokeLinecap="round" />
-                      {/* Shoulders */}
-                      <path d="M9 16 L19 16" stroke={activeSection === section.id ? '#f97316' : 'rgba(255,255,255,0.4)'} strokeWidth="1.8" strokeLinecap="round" />
-                      {/* Kneeling legs */}
-                      <path d="M14 22 L9 28 L6 34" stroke={activeSection === section.id ? '#f97316' : 'rgba(255,255,255,0.4)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M14 22 L19 28 L22 26" stroke={activeSection === section.id ? '#f97316' : 'rgba(255,255,255,0.4)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      {/* Back knee on ground */}
-                      <path d="M22 26 L24 30" stroke={activeSection === section.id ? '#f97316' : 'rgba(255,255,255,0.4)'} strokeWidth="1.8" strokeLinecap="round" />
-                    </svg>
+                    /* Atlas figure holding up the FAB — nono banana artwork */
+                    <img
+                      src="/atlas-fitness.png"
+                      alt="Fitness"
+                      className={`transition-all duration-200 ${activeSection === section.id ? 'scale-110' : ''}`}
+                      style={{
+                        width: '34px',
+                        height: '42px',
+                        objectFit: 'contain',
+                        filter: activeSection === section.id
+                          ? 'brightness(1.3) drop-shadow(0 0 6px rgba(249,115,22,0.6))'
+                          : 'brightness(0.5) grayscale(0.6)',
+                      }}
+                    />
                   ) : (
                     <span className={`text-lg mb-0.5 transition-transform ${activeSection === section.id ? 'scale-110' : ''}`}>
                       {section.emoji}

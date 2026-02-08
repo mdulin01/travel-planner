@@ -1879,6 +1879,8 @@ export default function TripPlanner() {
           if (data.social) setSharedSocial(data.social);
           if (data.habits) setSharedHabits(data.habits);
         }
+        // Mark hub data as loaded so saves are now safe
+        hubDataLoadedRef.current = true;
       },
       (error) => {
         console.error('Error loading shared hub data:', error);
@@ -2311,23 +2313,30 @@ export default function TripPlanner() {
   };
 
   // ========== SHARED HUB SAVE & CRUD ==========
+  const hubDataLoadedRef = useRef(false);
+
   const saveSharedHub = useCallback(async (newLists, newTasks, newIdeas, newSocial, newHabits) => {
     if (!user) return;
+    // Don't save until Firebase data has loaded — prevents overwriting with empty arrays
+    if (!hubDataLoadedRef.current) {
+      console.warn('saveSharedHub blocked: data not yet loaded from Firebase');
+      return;
+    }
     try {
-      await setDoc(doc(db, 'tripData', 'sharedHub'), {
-        lists: newLists || sharedLists,
-        tasks: newTasks || sharedTasks,
-        ideas: newIdeas || sharedIdeas,
-        social: newSocial || sharedSocial,
-        habits: newHabits || sharedHabits,
-        lastUpdated: new Date().toISOString(),
-        updatedBy: currentUser
-      });
+      // Only write the fields that were explicitly passed (non-null)
+      // This prevents stale closure values from overwriting other fields
+      const updates = { lastUpdated: new Date().toISOString(), updatedBy: currentUser };
+      if (newLists !== null && newLists !== undefined) updates.lists = newLists;
+      if (newTasks !== null && newTasks !== undefined) updates.tasks = newTasks;
+      if (newIdeas !== null && newIdeas !== undefined) updates.ideas = newIdeas;
+      if (newSocial !== null && newSocial !== undefined) updates.social = newSocial;
+      if (newHabits !== null && newHabits !== undefined) updates.habits = newHabits;
+      await setDoc(doc(db, 'tripData', 'sharedHub'), updates, { merge: true });
     } catch (error) {
       console.error('Error saving shared hub:', error);
       showToast('Failed to save. Please try again.', 'error');
     }
-  }, [user, sharedLists, sharedTasks, sharedIdeas, sharedSocial, sharedHabits, currentUser, showToast]);
+  }, [user, currentUser, showToast]);
 
   // Update the ref so the hook can use the actual saveSharedHub function
   useEffect(() => {

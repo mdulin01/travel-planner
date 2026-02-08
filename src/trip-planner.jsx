@@ -3570,9 +3570,9 @@ export default function TripPlanner() {
           {/* ========== HUB SECTION (formerly Home) ========== */}
           {activeSection === 'home' && (
             <SharedHubProvider value={sharedHub}>
-            <div className="mt-8">
+            <div>
               {/* Hub Sub-Navigation */}
-              <div className="flex gap-1.5 md:gap-2 mb-6 items-center justify-start">
+              <div className="flex gap-1.5 md:gap-2 mb-4 items-center justify-start sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
                 {[
                   { id: 'home', emoji: '📊' },
                   { id: 'tasks', emoji: '✅' },
@@ -4347,7 +4347,7 @@ export default function TripPlanner() {
           {activeSection === 'travel' && (
           <div className="mt-8">
             {/* Action Buttons - Travel (left padding for FAB on mobile) */}
-            <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap pl-0">
+            <div className="flex gap-1.5 md:gap-2 mb-4 items-center flex-wrap pl-0 sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
               {/* View Switcher - compact on mobile */}
               <button
                 onClick={() => setTravelViewMode('main')}
@@ -5616,7 +5616,7 @@ export default function TripPlanner() {
           {activeSection === 'fitness' && (
             <div className="mt-8">
               {/* Fitness View Mode Toggle (left padding for FAB on mobile) */}
-              <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap pl-0">
+              <div className="flex gap-1.5 md:gap-2 mb-4 items-center flex-wrap pl-0 sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
                 {/* View Switcher - compact on mobile */}
                 {[
                   { id: 'events', label: 'Events', emoji: '🎯' },
@@ -7551,7 +7551,7 @@ export default function TripPlanner() {
                 <>
                   {/* Events List View */}
                   {/* View Mode Toggle (left padding for FAB on mobile) */}
-                  <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap pl-0">
+                  <div className="flex gap-1.5 md:gap-2 mb-4 items-center flex-wrap pl-0 sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
                     {/* View Switcher - compact on mobile */}
                     {['upcoming', 'past', 'all'].map(mode => (
                       <button
@@ -7838,7 +7838,7 @@ export default function TripPlanner() {
           {activeSection === 'memories' && (
             <div className="mt-8">
               {/* Controls Row - Responsive mobile buttons (left padding for FAB on mobile) */}
-              <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap pl-0">
+              <div className="flex gap-1.5 md:gap-2 mb-4 items-center flex-wrap pl-0 sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
                 {/* View Switcher - compact on mobile */}
                 {[
                   { id: 'timeline', label: 'Timeline', emoji: '📅' },
@@ -11275,14 +11275,13 @@ export default function TripPlanner() {
         }
       `}</style>
 
-      {/* Floating Action Button (FAB) - Quick Add - Aligned with section navigation buttons */}
+      {/* Desktop FAB - Top left, only on desktop */}
       {isOwner && !initialAppMode && !showAddMemoryModal && !editingMemory && !editingTrip && !editingPartyEvent && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && !showAddTaskModal && !showSharedListModal && !showAddIdeaModal && !showAddSocialModal && !showAddHabitModal && (
-        <div className="fixed right-4 md:top-24 md:left-6 md:right-auto md:bottom-auto z-[90] fab-mobile-bottom">
-          {/* FAB Menu - Compact 3x3 Grid */}
+        <div className="hidden md:block fixed top-24 left-6 z-[90]">
           {showAddNewMenu && (
             <>
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[89]" onClick={() => setShowAddNewMenu(false)} />
-              <div className="absolute bottom-16 right-0 md:bottom-auto md:top-16 md:left-0 md:right-auto z-[91] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
+              <div className="absolute top-16 left-0 z-[91] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
                 style={{ animation: 'fabGridIn 0.15s ease-out both' }}>
                 <div className="grid grid-cols-3 gap-3">
                   {[
@@ -11296,95 +11295,111 @@ export default function TripPlanner() {
                     { action: () => setShowAddMemoryModal('milestone'), icon: '💝', label: 'Memory', gradient: 'from-rose-400 to-pink-500' },
                     { action: () => setShowAddFitnessEventModal(true), icon: '🏃', label: 'Fitness', gradient: 'from-orange-400 to-red-500' },
                   ].map((item, idx) => (
-                    <button
-                      key={item.label}
-                      onClick={() => { setShowAddNewMenu(false); item.action(); }}
-                      className="flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-xl hover:bg-white/10 transition active:scale-95"
-                      style={{ animation: `fabItemIn 0.12s ease-out ${idx * 0.02}s both` }}
-                    >
-                      <span className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center text-xl shadow-md`}>
-                        {item.icon}
-                      </span>
+                    <button key={item.label} onClick={() => { setShowAddNewMenu(false); item.action(); }} className="flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-xl hover:bg-white/10 transition active:scale-95" style={{ animation: `fabItemIn 0.12s ease-out ${idx * 0.02}s both` }}>
+                      <span className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center text-xl shadow-md`}>{item.icon}</span>
                       <span className="text-[11px] text-white/70 font-medium leading-tight">{item.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
               <style>{`
-                @keyframes fabGridIn {
-                  from { opacity: 0; transform: scale(0.9) translateY(8px); }
-                  to { opacity: 1; transform: scale(1) translateY(0); }
-                }
-                @keyframes fabItemIn {
-                  from { opacity: 0; transform: scale(0.8); }
-                  to { opacity: 1; transform: scale(1); }
-                }
+                @keyframes fabGridIn { from { opacity: 0; transform: scale(0.9) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+                @keyframes fabItemIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
               `}</style>
             </>
           )}
-
-          {/* Main FAB Button */}
-          <button
-            onClick={() => setShowAddNewMenu(!showAddNewMenu)}
-            className={`w-14 h-14 md:w-12 md:h-12 rounded-full shadow-2xl flex items-center justify-center transition-all duration-200 active:scale-90 ${
-              showAddNewMenu
-                ? 'bg-gradient-to-r from-pink-500 to-rose-500 rotate-45'
-                : 'bg-gradient-to-r from-purple-500 to-violet-600 hover:shadow-purple-500/30'
-            }`}
-            style={{ boxShadow: showAddNewMenu ? '0 8px 32px rgba(236, 72, 153, 0.4)' : '0 8px 32px rgba(139, 92, 246, 0.4)' }}
-          >
+          <button onClick={() => setShowAddNewMenu(!showAddNewMenu)} className={`w-12 h-12 rounded-full shadow-2xl flex items-center justify-center transition-all duration-200 active:scale-90 ${showAddNewMenu ? 'bg-gradient-to-r from-pink-500 to-rose-500 rotate-45' : 'bg-gradient-to-r from-purple-500 to-violet-600 hover:shadow-purple-500/30'}`} style={{ boxShadow: showAddNewMenu ? '0 8px 32px rgba(236, 72, 153, 0.4)' : '0 8px 32px rgba(139, 92, 246, 0.4)' }}>
             <Plus className="w-6 h-6 text-white transition-transform duration-200" />
           </button>
         </div>
       )}
 
-      {/* Mobile Bottom Navigation - Only show on mobile, when not in app mode, and when no modal is open */}
+      {/* Mobile Bottom Navigation with integrated FAB */}
       {!initialAppMode && !showAddMemoryModal && !editingMemory && !editingTrip && !editingPartyEvent && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && !showAddTaskModal && !showSharedListModal && !showAddIdeaModal && !showAddSocialModal && !showAddHabitModal && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-white/10 z-[100]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}>
-          <div className="flex items-center justify-around py-2 px-1">
-            {[
-              { id: 'home', label: 'Hub', emoji: '⚛️', gradient: 'from-pink-500 to-purple-500' },
-              { id: 'travel', label: 'Travel', emoji: '✈️', gradient: 'from-teal-400 to-cyan-500' },
-              { id: 'fitness', label: 'Fitness', emoji: '🏃', gradient: 'from-orange-400 to-red-500' },
-              { id: 'events', label: 'Events', emoji: '🎉', gradient: 'from-amber-400 to-orange-500' },
-              { id: 'memories', label: 'Memories', emoji: '💝', gradient: 'from-rose-400 to-pink-500' },
-            ].map(section => (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-[100]" style={{ transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}>
+          {/* FAB Menu Popup - anchored to center of nav */}
+          {showAddNewMenu && isOwner && (
+            <>
+              <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[99]" onClick={() => setShowAddNewMenu(false)} />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[101] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
+                style={{ animation: 'fabGridIn 0.15s ease-out both' }}>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { action: () => setShowAddTaskModal('create'), icon: '✅', label: 'Task', gradient: 'from-blue-400 to-indigo-500' },
+                    { action: () => setShowSharedListModal('create'), icon: '🛒', label: 'List', gradient: 'from-emerald-400 to-teal-500' },
+                    { action: () => setShowAddSocialModal('create'), icon: '👥', label: 'Social', gradient: 'from-purple-400 to-violet-500' },
+                    { action: () => setShowAddHabitModal('create'), icon: '🔄', label: 'Habit', gradient: 'from-green-400 to-emerald-500' },
+                    { action: () => setShowAddIdeaModal('create'), icon: '💡', label: 'Idea', gradient: 'from-yellow-400 to-amber-500' },
+                    { action: () => setShowNewTripModal('adventure'), icon: '✈️', label: 'Trip', gradient: 'from-teal-400 to-cyan-500' },
+                    { action: () => setShowAddEventModal(true), icon: '🎉', label: 'Event', gradient: 'from-amber-400 to-orange-500' },
+                    { action: () => setShowAddMemoryModal('milestone'), icon: '💝', label: 'Memory', gradient: 'from-rose-400 to-pink-500' },
+                    { action: () => setShowAddFitnessEventModal(true), icon: '🏃', label: 'Fitness', gradient: 'from-orange-400 to-red-500' },
+                  ].map((item, idx) => (
+                    <button key={item.label} onClick={() => { setShowAddNewMenu(false); item.action(); }} className="flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-xl hover:bg-white/10 transition active:scale-95" style={{ animation: `fabItemIn 0.12s ease-out ${idx * 0.02}s both` }}>
+                      <span className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center text-xl shadow-md`}>{item.icon}</span>
+                      <span className="text-[11px] text-white/70 font-medium leading-tight">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <style>{`
+                @keyframes fabGridIn { from { opacity: 0; transform: scale(0.9) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+                @keyframes fabItemIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+              `}</style>
+            </>
+          )}
+          {/* Nav bar background */}
+          <div className="relative bg-slate-900 border-t border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            {/* Raised FAB button - centered, overlapping top of nav */}
+            {isOwner && (
               <button
-                key={section.id}
-                onClick={() => {
-                  setActiveSection(section.id);
-                  if (section.id === 'travel') setTravelViewMode('main');
-                  if (section.id === 'home') setHubSubView('home');
-                  // Close any open dropdowns
-                  setShowComingSoonMenu(false);
-                }}
-                className={`relative flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 px-2 rounded-xl transition-all active:scale-95 ${
-                  activeSection === section.id
-                    ? 'bg-white/10'
-                    : 'active:bg-white/10'
+                onClick={() => setShowAddNewMenu(!showAddNewMenu)}
+                className={`absolute left-1/2 -translate-x-1/2 -top-6 w-12 h-12 rounded-full shadow-xl flex items-center justify-center transition-all duration-200 active:scale-90 z-[101] ${
+                  showAddNewMenu
+                    ? 'bg-gradient-to-r from-pink-500 to-rose-500 rotate-45'
+                    : 'bg-gradient-to-r from-purple-500 to-violet-600'
                 }`}
+                style={{ boxShadow: showAddNewMenu ? '0 4px 20px rgba(236, 72, 153, 0.5)' : '0 4px 20px rgba(139, 92, 246, 0.5)' }}
               >
-                <span className={`text-xl mb-0.5 transition-transform ${activeSection === section.id ? 'scale-110' : ''}`}>
-                  {section.emoji}
-                </span>
-                <span className={`text-[10px] font-medium transition-colors ${
-                  activeSection === section.id
-                    ? 'text-white'
-                    : 'text-white/50'
-                }`}>
-                  {section.label}
-                </span>
-                {activeSection === section.id && (
-                  <div className={`absolute -bottom-0.5 w-6 h-0.5 rounded-full bg-gradient-to-r ${section.gradient}`} />
-                )}
+                <Plus className="w-6 h-6 text-white transition-transform duration-200" />
               </button>
-            ))}
+            )}
+            {/* Tab buttons */}
+            <div className="flex items-end justify-around px-1 pt-1 pb-1">
+              {[
+                { id: 'home', label: 'Hub', emoji: '⚛️', gradient: 'from-pink-500 to-purple-500' },
+                { id: 'travel', label: 'Travel', emoji: '✈️', gradient: 'from-teal-400 to-cyan-500' },
+                { id: 'fitness', label: 'Fitness', emoji: '🏃', gradient: 'from-orange-400 to-red-500' },
+                { id: 'events', label: 'Events', emoji: '🎉', gradient: 'from-amber-400 to-orange-500' },
+                { id: 'memories', label: 'Memories', emoji: '💝', gradient: 'from-rose-400 to-pink-500' },
+              ].map((section, idx) => (
+                <button
+                  key={section.id}
+                  onClick={() => {
+                    setActiveSection(section.id);
+                    if (section.id === 'travel') setTravelViewMode('main');
+                    if (section.id === 'home') setHubSubView('home');
+                    setShowComingSoonMenu(false);
+                  }}
+                  className={`relative flex flex-col items-center justify-center py-1.5 rounded-xl transition-all active:scale-95 ${idx === 2 ? 'min-w-[52px] pt-3' : 'min-w-[52px]'} ${
+                    activeSection === section.id ? '' : ''
+                  }`}
+                >
+                  <span className={`text-lg mb-0.5 transition-transform ${activeSection === section.id ? 'scale-110' : ''}`}>
+                    {section.emoji}
+                  </span>
+                  <span className={`text-[10px] font-medium transition-colors ${activeSection === section.id ? 'text-white' : 'text-white/40'}`}>
+                    {section.label}
+                  </span>
+                  {activeSection === section.id && (
+                    <div className={`absolute -bottom-0.5 w-6 h-0.5 rounded-full bg-gradient-to-r ${section.gradient}`} />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </nav>
       )}
-
-      {/* Spacer for mobile bottom nav to prevent content being hidden behind it */}
-      {!initialAppMode && <div className="md:hidden h-32 bg-slate-900" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} />}
 
       {/* Bottom rainbow bar - hidden on mobile when bottom nav is showing */}
       <div className={`h-1.5 w-full bg-gradient-to-r from-red-500 via-orange-500 via-yellow-400 via-green-500 via-blue-500 to-purple-500 ${!initialAppMode ? 'hidden md:block' : ''}`} />

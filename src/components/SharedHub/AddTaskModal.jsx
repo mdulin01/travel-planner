@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Check, Calendar, Link, Link2, ExternalLink, Tag, Flag, User } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Check, Calendar, Link, Link2, ExternalLink, Tag, Flag, User, ImagePlus, Trash2 } from 'lucide-react';
 import { timeHorizons, taskPriorities } from '../../constants';
 import { getDomainFromUrl } from '../../utils';
 
@@ -17,6 +17,7 @@ const AddTaskModal = React.memo(({
     title: editTask.title || '',
     description: editTask.description || '',
     url: editTask.url || '',
+    image: editTask.image || '',
     timeHorizon: editTask.timeHorizon || 'today',
     dueDate: editTask.dueDate || '',
     assignedTo: editTask.assignedTo || 'Mike',
@@ -27,6 +28,7 @@ const AddTaskModal = React.memo(({
     title: '',
     description: '',
     url: '',
+    image: '',
     timeHorizon: 'today',
     dueDate: '',
     assignedTo: 'Mike',
@@ -37,6 +39,35 @@ const AddTaskModal = React.memo(({
 
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const fileInputRef = useRef(null);
+
+  // Resize image to keep Firestore doc size manageable
+  const resizeImage = (file, maxWidth = 400) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ratio = Math.min(maxWidth / img.width, maxWidth / img.height, 1);
+          canvas.width = img.width * ratio;
+          canvas.height = img.height * ratio;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImagePick = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const dataUrl = await resizeImage(file);
+    updateField('image', dataUrl);
+  };
 
   const isEditing = !!editTask;
 
@@ -86,6 +117,7 @@ const AddTaskModal = React.memo(({
       title: formData.title.trim(),
       description: formData.description.trim(),
       url: formData.url.trim(),
+      image: formData.image || '',
       timeHorizon: formData.timeHorizon,
       dueDate: formData.dueDate,
       assignedTo: formData.assignedTo,
@@ -259,6 +291,46 @@ const AddTaskModal = React.memo(({
                 <span>{getDomainFromUrl(formData.url)}</span>
                 <ExternalLink className="w-3 h-3" />
               </div>
+            )}
+          </div>
+
+          {/* Image */}
+          <div>
+            <label className="block text-sm font-medium text-white/70 mb-2 flex items-center gap-2">
+              <ImagePlus className="w-4 h-4" />
+              Photo
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImagePick}
+              className="hidden"
+            />
+            {formData.image ? (
+              <div className="relative inline-block">
+                <img
+                  src={formData.image}
+                  alt="Task"
+                  className="w-full max-h-48 object-cover rounded-xl border-2 border-slate-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => updateField('image', '')}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-500 rounded-full transition text-white"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-4 border-2 border-dashed border-slate-600 rounded-xl text-white/40 hover:text-white/60 hover:border-slate-500 transition flex items-center justify-center gap-2 text-sm"
+              >
+                <ImagePlus className="w-5 h-5" />
+                Tap to add a photo
+              </button>
             )}
           </div>
 

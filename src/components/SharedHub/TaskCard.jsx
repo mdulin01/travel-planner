@@ -142,6 +142,15 @@ const TaskCard = React.memo(({ task, onNavigateToLinked, getLinkedLabel }) => {
           </div>
         </div>
 
+        {/* Image thumbnail */}
+        {task.image && (
+          <img
+            src={task.image}
+            alt=""
+            className="shrink-0 w-10 h-10 rounded-lg object-cover border border-white/10"
+          />
+        )}
+
         {/* 3-dot menu */}
         <div className="relative shrink-0" ref={menuRef}>
           <button

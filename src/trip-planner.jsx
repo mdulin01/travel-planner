@@ -919,7 +919,7 @@ export default function TripPlanner() {
 
       const timestamp = Date.now();
       const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const storageRef = ref(storage, `fitness-weeks/${eventId}/${weekId}/${timestamp}_${safeName}`);
+      const storageRef = ref(storage, `memories/fitness-${eventId}-${weekId}-${timestamp}_${safeName}`);
       await uploadBytes(storageRef, fileToUpload);
       const downloadURL = await getDownloadURL(storageRef);
 

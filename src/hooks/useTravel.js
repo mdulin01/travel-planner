@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 /**
  * useTravel Hook
@@ -7,6 +7,9 @@ import { useState, useCallback } from 'react';
  */
 
 export const useTravel = (user, currentUser, saveToFirestore, showToast, getEmojiSuggestion, tripColors) => {
+  // Keep a ref so callbacks always use the latest saveToFirestore
+  const saveRef = useRef(saveToFirestore);
+  saveRef.current = saveToFirestore;
   // ========== INITIAL DATA ==========
   const defaultTrips = [
     {
@@ -76,7 +79,7 @@ export const useTravel = (user, currentUser, saveToFirestore, showToast, getEmoj
     if (isWishlist) {
       const newWishlist = [...wishlist, newTrip];
       setWishlist(newWishlist);
-      saveToFirestore(null, newWishlist, null);
+      saveRef.current(null, newWishlist, null);
     } else {
       const newTrips = [...trips, newTrip];
       const newTripDetails = {
@@ -85,10 +88,10 @@ export const useTravel = (user, currentUser, saveToFirestore, showToast, getEmoj
       };
       setTrips(newTrips);
       setTripDetails(newTripDetails);
-      saveToFirestore(newTrips, null, newTripDetails);
+      saveRef.current(newTrips, null, newTripDetails);
     }
     setShowNewTripModal(null);
-  }, [trips, wishlist, tripDetails, tripColors, getEmojiSuggestion, saveToFirestore]);
+  }, [trips, wishlist, tripDetails, tripColors, getEmojiSuggestion]);
 
   const updateTripDates = useCallback(async (tripId, newStart, newEnd) => {
     const newTrips = trips.map(trip =>
@@ -97,9 +100,9 @@ export const useTravel = (user, currentUser, saveToFirestore, showToast, getEmoj
         : trip
     );
     setTrips(newTrips);
-    await saveToFirestore(newTrips, null, null);
+    await saveRef.current(newTrips, null, null);
     return newTrips.find(t => t.id === tripId);
-  }, [trips, saveToFirestore]);
+  }, [trips]);
 
   const deleteTrip = useCallback((tripId) => {
     if (!canDeleteTrip(tripId)) {
@@ -111,7 +114,7 @@ export const useTravel = (user, currentUser, saveToFirestore, showToast, getEmoj
     delete newTripDetails[tripId];
     setTrips(newTrips);
     setTripDetails(newTripDetails);
-    saveToFirestore(newTrips, null, newTripDetails);
+    saveRef.current(newTrips, null, newTripDetails);
   }, [trips, tripDetails, canDeleteTrip, saveToFirestore, showToast]);
 
   const updateTripColor = useCallback((tripId, colorSet) => {
@@ -119,24 +122,24 @@ export const useTravel = (user, currentUser, saveToFirestore, showToast, getEmoj
       trip.id === tripId ? { ...trip, ...colorSet } : trip
     );
     setTrips(newTrips);
-    saveToFirestore(newTrips, null, null);
-  }, [trips, saveToFirestore]);
+    saveRef.current(newTrips, null, null);
+  }, [trips]);
 
   const updateTripEmoji = useCallback((tripId, emoji) => {
     const newTrips = trips.map(trip =>
       trip.id === tripId ? { ...trip, emoji } : trip
     );
     setTrips(newTrips);
-    saveToFirestore(newTrips, null, null);
-  }, [trips, saveToFirestore]);
+    saveRef.current(newTrips, null, null);
+  }, [trips]);
 
   const updateTripCoverImage = useCallback((tripId, imageUrl) => {
     const newTrips = trips.map(trip =>
       trip.id === tripId ? { ...trip, coverImage: imageUrl } : trip
     );
     setTrips(newTrips);
-    saveToFirestore(newTrips, null, null);
-  }, [trips, saveToFirestore]);
+    saveRef.current(newTrips, null, null);
+  }, [trips]);
 
   const convertToAdventure = useCallback((wishlistItem) => {
     setShowNewTripModal({ type: 'convert', item: wishlistItem });
@@ -156,7 +159,7 @@ export const useTravel = (user, currentUser, saveToFirestore, showToast, getEmoj
       }
     };
     setTripDetails(newTripDetails);
-    saveToFirestore(null, null, newTripDetails);
+    saveRef.current(null, null, newTripDetails);
     setShowAddModal(null);
   }, [tripDetails, currentUser, canEditTrip, saveToFirestore, showToast]);
 
@@ -173,7 +176,7 @@ export const useTravel = (user, currentUser, saveToFirestore, showToast, getEmoj
       }
     };
     setTripDetails(newTripDetails);
-    saveToFirestore(null, null, newTripDetails);
+    saveRef.current(null, null, newTripDetails);
   }, [tripDetails, canEditTrip, saveToFirestore, showToast]);
 
   const updateItem = useCallback((tripId, type, itemId, updatedData) => {
@@ -191,7 +194,7 @@ export const useTravel = (user, currentUser, saveToFirestore, showToast, getEmoj
       }
     };
     setTripDetails(newTripDetails);
-    saveToFirestore(null, null, newTripDetails);
+    saveRef.current(null, null, newTripDetails);
   }, [tripDetails, canEditTrip, saveToFirestore, showToast]);
 
   // ========== RETURN CONTEXT VALUE ==========

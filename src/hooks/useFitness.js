@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 /**
  * useFitness Hook
@@ -7,6 +7,15 @@ import { useState, useCallback } from 'react';
  */
 
 export const useFitness = (saveFitnessToFirestore, showToast, generateTrainingWeeks, triathlonTrainingPlan, indyHalfTrainingPlan) => {
+  // Keep refs so callbacks always use the latest functions/data
+  const saveRef = useRef(saveFitnessToFirestore);
+  saveRef.current = saveFitnessToFirestore;
+  const genRef = useRef(generateTrainingWeeks);
+  genRef.current = generateTrainingWeeks;
+  const triPlanRef = useRef(triathlonTrainingPlan);
+  triPlanRef.current = triathlonTrainingPlan;
+  const indyPlanRef = useRef(indyHalfTrainingPlan);
+  indyPlanRef.current = indyHalfTrainingPlan;
   // ========== INITIAL DATA ==========
   const defaultFitnessEvents = [
     {
@@ -40,8 +49,8 @@ export const useFitness = (saveFitnessToFirestore, showToast, generateTrainingWe
       event.id === updatedEvent.id ? updatedEvent : event
     );
     setFitnessEvents(newEvents);
-    saveFitnessToFirestore(newEvents, fitnessTrainingPlans);
-  }, [fitnessEvents, fitnessTrainingPlans, saveFitnessToFirestore]);
+    saveRef.current(newEvents, fitnessTrainingPlans);
+  }, [fitnessEvents, fitnessTrainingPlans]);
 
   const deleteFitnessEvent = useCallback((eventId) => {
     const newEvents = fitnessEvents.filter(event => event.id !== eventId);
@@ -49,8 +58,8 @@ export const useFitness = (saveFitnessToFirestore, showToast, generateTrainingWe
     delete newPlans[eventId];
     setFitnessEvents(newEvents);
     setFitnessTrainingPlans(newPlans);
-    saveFitnessToFirestore(newEvents, newPlans);
-  }, [fitnessEvents, fitnessTrainingPlans, saveFitnessToFirestore]);
+    saveRef.current(newEvents, newPlans);
+  }, [fitnessEvents, fitnessTrainingPlans]);
 
   // ========== TRAINING PLAN OPERATIONS ==========
   const updateTrainingWeek = useCallback(async (eventId, weekId, updates) => {
@@ -59,15 +68,15 @@ export const useFitness = (saveFitnessToFirestore, showToast, generateTrainingWe
     // Initialize plan if it doesn't exist
     if (!newPlans[eventId]) {
       if (eventId === 'triathlon-2026') {
-        newPlans[eventId] = JSON.parse(JSON.stringify(triathlonTrainingPlan));
+        newPlans[eventId] = JSON.parse(JSON.stringify(triPlanRef.current));
       } else if (eventId === 'indy-half-2026') {
-        newPlans[eventId] = JSON.parse(JSON.stringify(indyHalfTrainingPlan));
+        newPlans[eventId] = JSON.parse(JSON.stringify(indyPlanRef.current));
       } else {
         // Generate training weeks for other events
         const event = fitnessEvents.find(e => e.id === eventId);
         if (event) {
           const today = new Date().toISOString().split('T')[0];
-          newPlans[eventId] = generateTrainingWeeks(today, event.date, eventId);
+          newPlans[eventId] = genRef.current(today, event.date, eventId);
         }
       }
     }
@@ -85,8 +94,8 @@ export const useFitness = (saveFitnessToFirestore, showToast, generateTrainingWe
     });
 
     setFitnessTrainingPlans(newPlans);
-    await saveFitnessToFirestore(null, newPlans);
-  }, [fitnessEvents, fitnessTrainingPlans, saveFitnessToFirestore, generateTrainingWeeks, triathlonTrainingPlan, indyHalfTrainingPlan]);
+    await saveRef.current(null, newPlans);
+  }, [fitnessEvents, fitnessTrainingPlans]);
 
   const updateWorkout = useCallback(async (eventId, weekId, workoutType, workoutId, updates) => {
     const newPlans = { ...fitnessTrainingPlans };
@@ -94,9 +103,9 @@ export const useFitness = (saveFitnessToFirestore, showToast, generateTrainingWe
     // Initialize plan if it doesn't exist
     if (!newPlans[eventId]) {
       if (eventId === 'triathlon-2026') {
-        newPlans[eventId] = JSON.parse(JSON.stringify(triathlonTrainingPlan));
+        newPlans[eventId] = JSON.parse(JSON.stringify(triPlanRef.current));
       } else if (eventId === 'indy-half-2026') {
-        newPlans[eventId] = JSON.parse(JSON.stringify(indyHalfTrainingPlan));
+        newPlans[eventId] = JSON.parse(JSON.stringify(indyPlanRef.current));
       } else {
         return; // Can't update non-existent plan
       }
@@ -117,8 +126,8 @@ export const useFitness = (saveFitnessToFirestore, showToast, generateTrainingWe
     });
 
     setFitnessTrainingPlans(newPlans);
-    await saveFitnessToFirestore(null, newPlans);
-  }, [fitnessTrainingPlans, saveFitnessToFirestore, triathlonTrainingPlan, indyHalfTrainingPlan]);
+    await saveRef.current(null, newPlans);
+  }, [fitnessTrainingPlans]);
 
   const addWorkout = useCallback(async (eventId, weekId, workoutType, workoutData) => {
     const newPlans = { ...fitnessTrainingPlans };
@@ -126,14 +135,14 @@ export const useFitness = (saveFitnessToFirestore, showToast, generateTrainingWe
     // Initialize plan if it doesn't exist
     if (!newPlans[eventId]) {
       if (eventId === 'triathlon-2026') {
-        newPlans[eventId] = JSON.parse(JSON.stringify(triathlonTrainingPlan));
+        newPlans[eventId] = JSON.parse(JSON.stringify(triPlanRef.current));
       } else if (eventId === 'indy-half-2026') {
-        newPlans[eventId] = JSON.parse(JSON.stringify(indyHalfTrainingPlan));
+        newPlans[eventId] = JSON.parse(JSON.stringify(indyPlanRef.current));
       } else {
         const event = fitnessEvents.find(e => e.id === eventId);
         if (event) {
           const today = new Date().toISOString().split('T')[0];
-          newPlans[eventId] = generateTrainingWeeks(today, event.date, eventId);
+          newPlans[eventId] = genRef.current(today, event.date, eventId);
         }
       }
     }
@@ -154,8 +163,8 @@ export const useFitness = (saveFitnessToFirestore, showToast, generateTrainingWe
     });
 
     setFitnessTrainingPlans(newPlans);
-    await saveFitnessToFirestore(null, newPlans);
-  }, [fitnessEvents, fitnessTrainingPlans, saveFitnessToFirestore, generateTrainingWeeks, triathlonTrainingPlan, indyHalfTrainingPlan]);
+    await saveRef.current(null, newPlans);
+  }, [fitnessEvents, fitnessTrainingPlans]);
 
   const deleteWorkout = useCallback(async (eventId, weekId, workoutType, workoutId) => {
     const newPlans = { ...fitnessTrainingPlans };
@@ -173,8 +182,8 @@ export const useFitness = (saveFitnessToFirestore, showToast, generateTrainingWe
     });
 
     setFitnessTrainingPlans(newPlans);
-    await saveFitnessToFirestore(null, newPlans);
-  }, [fitnessTrainingPlans, saveFitnessToFirestore]);
+    await saveRef.current(null, newPlans);
+  }, [fitnessTrainingPlans]);
 
   // ========== RETURN CONTEXT VALUE ==========
   return {

@@ -1544,7 +1544,7 @@ export default function TripPlanner() {
   const [eventViewMode, setEventViewMode] = useState('upcoming');
   const [newEventData, setNewEventData] = useState({
     name: '', emoji: '🎉', date: '', time: '18:00', endTime: '22:00',
-    location: '', entryCode: '', description: '', color: 'from-amber-400 to-orange-500', tasks: [], tasks: []
+    location: '', entryCode: '', description: '', color: 'from-amber-400 to-orange-500', tasks: []
   });
   const [eventGuestEmail, setEventGuestEmail] = useState('');
   const [eventGuestPermission, setEventGuestPermission] = useState('edit');
@@ -2238,59 +2238,52 @@ export default function TripPlanner() {
   };
 
   // Save to Firestore whenever data changes
-  const saveToFirestore = async (newTrips, newWishlist, newTripDetails, newMemories) => {
+  const saveToFirestore = useCallback(async (newTrips, newWishlist, newTripDetails, newMemories) => {
     if (!user) return;
 
     try {
-      await setDoc(doc(db, 'tripData', 'shared'), {
-        trips: newTrips || trips,
-        wishlist: newWishlist || wishlist,
-        tripDetails: newTripDetails || tripDetails,
-        memories: newMemories || memories,
-        lastUpdated: new Date().toISOString(),
-        updatedBy: currentUser
-      });
+      const updates = { lastUpdated: new Date().toISOString(), updatedBy: currentUser };
+      if (newTrips !== null && newTrips !== undefined) updates.trips = newTrips;
+      if (newWishlist !== null && newWishlist !== undefined) updates.wishlist = newWishlist;
+      if (newTripDetails !== null && newTripDetails !== undefined) updates.tripDetails = newTripDetails;
+      if (newMemories !== null && newMemories !== undefined) updates.memories = newMemories;
+      await setDoc(doc(db, 'tripData', 'shared'), updates, { merge: true });
       showToast('Changes saved', 'success');
     } catch (error) {
       console.error('Error saving to Firestore:', error);
       showToast('Failed to save changes. Please try again.', 'error');
     }
-  };
+  }, [user, currentUser, showToast]);
 
   // Save memories to Firestore
-  const saveMemoriesToFirestore = async (newMemories) => {
+  const saveMemoriesToFirestore = useCallback(async (newMemories) => {
     if (!user) return;
     try {
       await setDoc(doc(db, 'tripData', 'shared'), {
-        trips,
-        wishlist,
-        tripDetails,
         memories: newMemories,
         lastUpdated: new Date().toISOString(),
         updatedBy: currentUser
-      });
+      }, { merge: true });
     } catch (error) {
       console.error('Error saving memories to Firestore:', error);
       showToast('Failed to save memory. Please try again.', 'error');
     }
-  };
+  }, [user, currentUser, showToast]);
 
   // Save fitness data to Firestore
   const saveFitnessToFirestore = useCallback(async (newEvents, newTrainingPlans) => {
     if (!user) return;
 
     try {
-      await setDoc(doc(db, 'tripData', 'fitness'), {
-        events: newEvents || fitnessEvents,
-        trainingPlans: newTrainingPlans || fitnessTrainingPlans,
-        lastUpdated: new Date().toISOString(),
-        updatedBy: currentUser
-      });
+      const updates = { lastUpdated: new Date().toISOString(), updatedBy: currentUser };
+      if (newEvents !== null && newEvents !== undefined) updates.events = newEvents;
+      if (newTrainingPlans !== null && newTrainingPlans !== undefined) updates.trainingPlans = newTrainingPlans;
+      await setDoc(doc(db, 'tripData', 'fitness'), updates, { merge: true });
     } catch (error) {
       console.error('Error saving fitness to Firestore:', error);
       showToast('Failed to save fitness data. Please try again.', 'error');
     }
-  }, [user, fitnessEvents, fitnessTrainingPlans, currentUser, showToast]);
+  }, [user, currentUser, showToast]);
 
   // Update the ref so the hook can use the actual saveFitnessToFirestore function
   useEffect(() => {
@@ -2298,20 +2291,18 @@ export default function TripPlanner() {
   }, [saveFitnessToFirestore]);
 
   // Save party/social events to Firestore
-  const savePartyEventsToFirestore = async (newEvents) => {
+  const savePartyEventsToFirestore = useCallback(async (newEvents) => {
     if (!user) return;
 
     try {
-      await setDoc(doc(db, 'tripData', 'partyEvents'), {
-        events: newEvents || partyEvents,
-        lastUpdated: new Date().toISOString(),
-        updatedBy: currentUser
-      });
+      const updates = { lastUpdated: new Date().toISOString(), updatedBy: currentUser };
+      if (newEvents !== null && newEvents !== undefined) updates.events = newEvents;
+      await setDoc(doc(db, 'tripData', 'partyEvents'), updates, { merge: true });
     } catch (error) {
       console.error('Error saving party events to Firestore:', error);
       showToast('Failed to save event. Please try again.', 'error');
     }
-  };
+  }, [user, currentUser, showToast]);
 
   // ========== SHARED HUB SAVE & CRUD ==========
   const hubDataLoadedRef = useRef(false);

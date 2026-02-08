@@ -163,7 +163,7 @@ const AddTaskModal = React.memo(({
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={handleBackgroundClick}
     >
-      <div className="bg-slate-800 rounded-3xl shadow-2xl max-w-lg mx-auto w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-slate-800 rounded-3xl shadow-2xl max-w-lg mx-auto w-full max-h-[85dvh] flex flex-col overflow-hidden">
         {/* Gradient header bar */}
         <div className="h-1 bg-gradient-to-r from-teal-400 via-blue-500 to-indigo-500" />
 

@@ -192,7 +192,7 @@ const SharedListModal = React.memo(({
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={handleBackgroundClick}
     >
-      <div className="bg-slate-800 rounded-3xl shadow-2xl max-w-lg mx-auto w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-slate-800 rounded-3xl shadow-2xl max-w-lg mx-auto w-full max-h-[85dvh] flex flex-col overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500" />
 
         {/* Confirm close overlay */}

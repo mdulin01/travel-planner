@@ -223,7 +223,7 @@ const NewTripModal = ({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-2xl max-w-2xl w-full shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto border border-white/20">
+      <div className="bg-slate-800 rounded-2xl max-w-2xl w-full shadow-2xl relative overflow-hidden max-h-[85dvh] overflow-y-auto border border-white/20">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 via-yellow-400 via-green-500 via-blue-500 to-purple-500" />
         <div className="p-6 border-b border-white/10">
           <div className="flex justify-between items-center">

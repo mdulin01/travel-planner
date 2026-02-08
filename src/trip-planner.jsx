@@ -567,6 +567,8 @@ export default function TripPlanner() {
     { id: 126, category: 'concert', date: '2025-12-17', title: 'Dolly Christmas Show', description: 'Looking good in the new Christmas shirt', icon: '🎵', location: 'Greensboro, NC', image: '', link: '', comment: '', isFirstTime: false },
   ]);
   const [editingMemory, setEditingMemory] = useState(null); // memory object being edited
+  const [editingTrip, setEditingTrip] = useState(null); // trip object being edited
+  const [editingPartyEvent, setEditingPartyEvent] = useState(null); // event object being edited
   const [editingPhotoIndex, setEditingPhotoIndex] = useState(null); // which photo is being edited for positioning
   const [photoPosition, setPhotoPosition] = useState({ x: 50, y: 50, zoom: 100 }); // x%, y%, zoom%
   const [showPartnershipQuote, setShowPartnershipQuote] = useState(false); // cute quote popup
@@ -983,7 +985,6 @@ export default function TripPlanner() {
   const [showOpenDateModal, setShowOpenDateModal] = useState(false);
   const [showCompanionsModal, setShowCompanionsModal] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
-  const [editingTrip, setEditingTrip] = useState(null); // Trip being edited (matches events pattern)
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 2, 1)); // March 2026
   const [showTripMenu, setShowTripMenu] = useState(null); // trip id for menu
   const [showColorPicker, setShowColorPicker] = useState(null); // trip id for color picker
@@ -2451,15 +2452,18 @@ export default function TripPlanner() {
   const getLinkedLabel = (linkedTo) => {
     if (!linkedTo) return null;
     switch (linkedTo.section) {
-      case 'travel': {
+      case 'travel':
+      case 'trips': {
         const trip = trips.find(t => t.id === linkedTo.itemId);
         return trip ? `✈️ ${trip.destination}` : null;
       }
-      case 'fitness': {
+      case 'fitness':
+      case 'fitnessEvents': {
         const event = fitnessEvents.find(e => e.id === linkedTo.itemId);
         return event ? `🏃 ${event.name}` : null;
       }
-      case 'events': {
+      case 'events':
+      case 'partyEvents': {
         const event = partyEvents.find(e => e.id === linkedTo.itemId);
         return event ? `🎉 ${event.name}` : null;
       }
@@ -2471,10 +2475,23 @@ export default function TripPlanner() {
     }
   };
 
+  // Get linked Hub items (tasks, lists) for a given section card
+  const getLinkedHubItems = (section, itemId) => {
+    const matchSection = (s) => {
+      if (section === 'travel') return s === 'travel' || s === 'trips';
+      if (section === 'fitness') return s === 'fitness' || s === 'fitnessEvents';
+      if (section === 'events') return s === 'events' || s === 'partyEvents';
+      return s === section;
+    };
+    const linkedTasks = (sharedTasks || []).filter(t => t.linkedTo && matchSection(t.linkedTo.section) && t.linkedTo.itemId === itemId);
+    const linkedLists = (sharedLists || []).filter(l => l.linkedTo && matchSection(l.linkedTo.section) && l.linkedTo.itemId === itemId);
+    return { linkedTasks, linkedLists };
+  };
+
   // Navigate to a linked section item
   const navigateToLinked = (linkedTo) => {
     if (!linkedTo) return;
-    const sectionMap = { travel: 'travel', fitness: 'fitness', events: 'events', idea: 'home' };
+    const sectionMap = { travel: 'travel', trips: 'travel', fitness: 'fitness', fitnessEvents: 'fitness', events: 'events', partyEvents: 'events', idea: 'home' };
     const section = sectionMap[linkedTo.section];
     if (section) {
       setActiveSection(section);
@@ -3148,22 +3165,35 @@ export default function TripPlanner() {
       {/* Anchor removed for cleaner UI */}
 
       {/* Header */}
-      <header className="relative z-10 pt-4 md:pt-8 pb-2 md:pb-4 px-4 md:px-6 shrink-0">
+      <header className="relative z-10 pt-safe pb-2 md:pb-4 px-4 md:px-6 shrink-0">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between gap-2 md:gap-4 relative">
             {/* Left side: Names + Section Title on mobile */}
             <div className="flex items-center gap-2 md:gap-4 min-w-0">
               <div className="flex items-center gap-1 md:gap-2 shrink-0">
-                <h1 className="text-base md:text-3xl font-bold tracking-tight whitespace-nowrap">
-                  <button
-                    onClick={() => isOwner && setActiveSection('apps')}
-                    className="hover:opacity-80 cursor-pointer transition"
-                  >
-                    <span className="text-teal-400">Mike</span>
-                    <span className="text-white"> & </span>
-                    <span className="text-purple-400">Adam</span>
-                  </button>
-                </h1>
+                <button
+                  onClick={() => isOwner && setActiveSection('apps')}
+                  className="hover:opacity-90 active:scale-95 cursor-pointer transition-all flex items-center gap-1.5"
+                >
+                  <svg viewBox="0 0 512 512" className="w-8 h-8 md:w-10 md:h-10 shrink-0">
+                    <defs>
+                      <linearGradient id="logoSpectrum" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style={{stopColor:'#2dd4bf'}}/>
+                        <stop offset="20%" style={{stopColor:'#22d3ee'}}/>
+                        <stop offset="45%" style={{stopColor:'#818cf8'}}/>
+                        <stop offset="70%" style={{stopColor:'#c084fc'}}/>
+                        <stop offset="100%" style={{stopColor:'#f472b6'}}/>
+                      </linearGradient>
+                    </defs>
+                    <rect x="16" y="16" width="480" height="480" rx="96" ry="96" fill="#1e293b"/>
+                    <rect x="16" y="16" width="480" height="480" rx="96" ry="96" fill="none" stroke="url(#logoSpectrum)" strokeWidth="16" opacity="0.6"/>
+                    <text x="148" y="360" fontFamily="-apple-system, system-ui, sans-serif" fontWeight="800" fontSize="280" fill="url(#logoSpectrum)" opacity="0.95" letterSpacing="-12">M</text>
+                    <text x="278" y="360" fontFamily="-apple-system, system-ui, sans-serif" fontWeight="800" fontSize="280" fill="url(#logoSpectrum)" opacity="0.95" letterSpacing="-12">A</text>
+                  </svg>
+                  <span className="hidden md:inline text-sm font-semibold bg-gradient-to-r from-teal-400 via-indigo-400 to-pink-400 bg-clip-text text-transparent">
+                    Mike & Adam
+                  </span>
+                </button>
                 {/* Hearts icon - clickable */}
                 <button
                   onClick={() => setShowPartnershipQuote(true)}
@@ -4620,7 +4650,7 @@ export default function TripPlanner() {
                   <button
                     onClick={() => {
                       if (!showTripMenu && !showColorPicker && !showEmojiEditor && !showImageEditor) {
-                        setSelectedTrip(trip);
+                        setEditingTrip(trip);
                       }
                     }}
                     className="w-full text-left relative z-10"
@@ -4654,6 +4684,49 @@ export default function TripPlanner() {
                         </span>
                       </div>
                     )}
+                    {/* Linked Hub Items */}
+                    {(() => {
+                      const { linkedTasks, linkedLists } = getLinkedHubItems('travel', trip.id);
+                      if (linkedTasks.length === 0 && linkedLists.length === 0) return null;
+                      return (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {linkedTasks.map(task => (
+                            <button
+                              key={task.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveSection('home');
+                                setHubSubView('home');
+                              }}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition hover:scale-105 ${
+                                task.status === 'done'
+                                  ? 'bg-green-500/30 text-green-200'
+                                  : 'bg-white/20 text-white'
+                              }`}
+                              title={task.title}
+                            >
+                              <span>{task.status === 'done' ? '✅' : '☑️'}</span>
+                              <span className="max-w-[80px] truncate">{task.title}</span>
+                            </button>
+                          ))}
+                          {linkedLists.map(list => (
+                            <button
+                              key={list.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveSection('home');
+                                setHubSubView('home');
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded-full text-xs font-medium text-white transition hover:scale-105"
+                              title={list.name}
+                            >
+                              <span>{list.emoji || '📝'}</span>
+                              <span className="max-w-[80px] truncate">{list.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     <div className="mt-4 flex items-center gap-2 text-sm opacity-0 group-hover:opacity-100 transition">
                       <span>Plan this trip</span>
                       <ChevronRight className="w-4 h-4" />
@@ -7432,7 +7505,7 @@ export default function TripPlanner() {
                           <div
                             key={event.id}
                             data-search-id={`events-${event.id}`}
-                            onClick={() => setSelectedPartyEvent(event)}
+                            onClick={() => setEditingPartyEvent(event)}
                             onDragOver={(e) => { e.preventDefault(); setDragOverEventId(event.id); }}
                             onDragLeave={() => setDragOverEventId(null)}
                             onDrop={(e) => { e.stopPropagation(); handleEventCardDrop(e, event.id); }}
@@ -7534,6 +7607,49 @@ export default function TripPlanner() {
                                     <span>{(event.tasks || []).filter(t => t.completed).length}/{(event.tasks || []).length}</span>
                                   </div>
                                 </div>
+                                {/* Linked Hub Items */}
+                                {(() => {
+                                  const { linkedTasks, linkedLists } = getLinkedHubItems('events', event.id);
+                                  if (linkedTasks.length === 0 && linkedLists.length === 0) return null;
+                                  return (
+                                    <div className="mt-3 flex flex-wrap gap-1.5">
+                                      {linkedTasks.map(task => (
+                                        <span
+                                          key={task.id}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveSection('home');
+                                            setHubSubView('home');
+                                          }}
+                                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:scale-105 transition ${
+                                            task.status === 'done'
+                                              ? 'bg-green-500/30 text-green-200'
+                                              : 'bg-white/20 text-white'
+                                          }`}
+                                          title={task.title}
+                                        >
+                                          <span>{task.status === 'done' ? '✅' : '☑️'}</span>
+                                          <span className="max-w-[80px] truncate">{task.title}</span>
+                                        </span>
+                                      ))}
+                                      {linkedLists.map(list => (
+                                        <span
+                                          key={list.id}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveSection('home');
+                                            setHubSubView('home');
+                                          }}
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-white/20 rounded-full text-xs font-medium text-white cursor-pointer hover:scale-105 transition"
+                                          title={list.name}
+                                        >
+                                          <span>{list.emoji || '📝'}</span>
+                                          <span className="max-w-[80px] truncate">{list.name}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             )}
                           </div>
@@ -8543,7 +8659,7 @@ export default function TripPlanner() {
       {/* Add/Edit Fitness Event Modal */}
       {(showAddFitnessEventModal || editingFitnessEvent) && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-lg max-h-[85dvh] overflow-y-auto">
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white">
@@ -8963,7 +9079,7 @@ export default function TripPlanner() {
       {/* Edit Training Week Modal */}
       {editingTrainingWeek && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-2xl max-h-[85dvh] overflow-y-auto">
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white">
@@ -9584,9 +9700,134 @@ export default function TripPlanner() {
       )}
 
       {/* Edit Memory Modal */}
+      {editingTrip && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-lg max-h-[85dvh] overflow-y-auto">
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span className="text-2xl">{editingTrip.emoji}</span>
+                  Edit Trip
+                </h2>
+                <button onClick={() => setEditingTrip(null)} className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Destination */}
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-1">Destination</label>
+                <input type="text" value={editingTrip.destination || ''} onChange={(e) => setEditingTrip(prev => ({ ...prev, destination: e.target.value }))} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40" />
+              </div>
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-1">Start Date</label>
+                  <input type="date" value={editingTrip.dates?.start || ''} onChange={(e) => setEditingTrip(prev => ({ ...prev, dates: { ...prev.dates, start: e.target.value } }))} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-1">End Date</label>
+                  <input type="date" value={editingTrip.dates?.end || ''} onChange={(e) => setEditingTrip(prev => ({ ...prev, dates: { ...prev.dates, end: e.target.value } }))} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white" />
+                </div>
+              </div>
+              {/* Cover Image */}
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-1">Cover Image URL</label>
+                <input type="text" value={editingTrip.coverImage || ''} onChange={(e) => setEditingTrip(prev => ({ ...prev, coverImage: e.target.value }))} placeholder="Paste image URL..." className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40" />
+                {editingTrip.coverImage && (
+                  <img src={editingTrip.coverImage} alt="Cover preview" className="mt-2 w-full h-32 object-cover rounded-lg" />
+                )}
+              </div>
+              {/* Special Note */}
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-1">Special Note</label>
+                <input type="text" value={editingTrip.special || ''} onChange={(e) => setEditingTrip(prev => ({ ...prev, special: e.target.value }))} placeholder="e.g., Harry Styles Concert!" className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40" />
+              </div>
+            </div>
+            {/* Footer */}
+            <div className="p-6 border-t border-white/10 space-y-3">
+              <button onClick={() => { setSelectedTrip(editingTrip); setEditingTrip(null); }} className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition flex items-center justify-center gap-2">
+                View Full Details <ChevronRight className="w-4 h-4" />
+              </button>
+              <button onClick={() => {
+                const updatedTrips = trips.map(t => t.id === editingTrip.id ? editingTrip : t);
+                setTrips(updatedTrips);
+                setEditingTrip(null);
+                showToast('Trip updated!');
+              }} className="w-full py-3 bg-gradient-to-r from-teal-400 to-cyan-500 text-white font-bold rounded-xl hover:opacity-90 transition">
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingPartyEvent && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-lg max-h-[85dvh] overflow-y-auto">
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span className="text-2xl">{editingPartyEvent.emoji}</span>
+                  Edit Event
+                </h2>
+                <button onClick={() => setEditingPartyEvent(null)} className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-1">Event Name</label>
+                <input type="text" value={editingPartyEvent.name || ''} onChange={(e) => setEditingPartyEvent(prev => ({ ...prev, name: e.target.value }))} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-1">Date</label>
+                  <input type="date" value={editingPartyEvent.date || ''} onChange={(e) => setEditingPartyEvent(prev => ({ ...prev, date: e.target.value }))} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-1">Time</label>
+                  <input type="time" value={editingPartyEvent.time || ''} onChange={(e) => setEditingPartyEvent(prev => ({ ...prev, time: e.target.value }))} className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-1">Location</label>
+                <input type="text" value={editingPartyEvent.location || ''} onChange={(e) => setEditingPartyEvent(prev => ({ ...prev, location: e.target.value }))} placeholder="Where is it?" className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-1">Description</label>
+                <textarea value={editingPartyEvent.description || ''} onChange={(e) => setEditingPartyEvent(prev => ({ ...prev, description: e.target.value }))} rows={3} placeholder="Event details..." className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 resize-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-1">Cover Image URL</label>
+                <input type="text" value={editingPartyEvent.coverImage || ''} onChange={(e) => setEditingPartyEvent(prev => ({ ...prev, coverImage: e.target.value }))} placeholder="Paste image URL..." className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40" />
+                {editingPartyEvent.coverImage && (
+                  <img src={editingPartyEvent.coverImage} alt="Cover preview" className="mt-2 w-full h-32 object-cover rounded-lg" />
+                )}
+              </div>
+            </div>
+            <div className="p-6 border-t border-white/10 space-y-3">
+              <button onClick={() => { setSelectedPartyEvent(editingPartyEvent); setEditingPartyEvent(null); }} className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition flex items-center justify-center gap-2">
+                View Full Details <ChevronRight className="w-4 h-4" />
+              </button>
+              <button onClick={() => {
+                const updatedEvents = partyEvents.map(e => e.id === editingPartyEvent.id ? editingPartyEvent : e);
+                setPartyEvents(updatedEvents);
+                setEditingPartyEvent(null);
+                showToast('Event updated!');
+              }} className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold rounded-xl hover:opacity-90 transition">
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingMemory && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-lg max-h-[85dvh] overflow-y-auto">
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white">Edit Memory</h2>
@@ -10091,7 +10332,7 @@ export default function TripPlanner() {
       {/* Add Memory Modal */}
       {showAddMemoryModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-lg max-h-[85dvh] overflow-y-auto">
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white">Add New Memory</h2>
@@ -10346,7 +10587,7 @@ export default function TripPlanner() {
       {/* Add/Edit Event Modal - rendered at root level for use from any section */}
       {(showAddEventModal || editingEvent) && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-2xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto border border-white/20">
+          <div className="bg-slate-800 rounded-2xl max-w-lg w-full shadow-2xl max-h-[85dvh] overflow-y-auto border border-white/20">
             <div className="p-6 border-b border-white/10">
               <div className="flex justify-between items-center">
                 <h3 className="text-2xl font-bold text-white">
@@ -10672,7 +10913,7 @@ export default function TripPlanner() {
       {/* Calendar Picker Modal */}
       {showCalendarPicker && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-md max-h-[85dvh] overflow-y-auto">
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white">Select Calendar</h2>
@@ -10720,7 +10961,7 @@ export default function TripPlanner() {
       {/* Google Calendar Import Modal */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-md max-h-[85dvh] overflow-y-auto">
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white">Import Event</h2>
@@ -10845,7 +11086,7 @@ export default function TripPlanner() {
       `}</style>
 
       {/* Floating Action Button (FAB) - Quick Add - Aligned with section navigation buttons */}
-      {isOwner && !initialAppMode && !showAddMemoryModal && !editingMemory && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && !showAddTaskModal && !showSharedListModal && !showAddIdeaModal && !showAddSocialModal && !showAddHabitModal && (
+      {isOwner && !initialAppMode && !showAddMemoryModal && !editingMemory && !editingTrip && !editingPartyEvent && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && !showAddTaskModal && !showSharedListModal && !showAddIdeaModal && !showAddSocialModal && !showAddHabitModal && (
         <div className="fixed top-20 md:top-24 left-4 md:left-6 z-[90]">
           {/* FAB Menu - Compact 3x3 Grid */}
           {showAddNewMenu && (
@@ -10908,7 +11149,7 @@ export default function TripPlanner() {
       )}
 
       {/* Mobile Bottom Navigation - Only show on mobile, when not in app mode, and when no modal is open */}
-      {!initialAppMode && !showAddMemoryModal && !editingMemory && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && !showAddTaskModal && !showSharedListModal && !showAddIdeaModal && !showAddSocialModal && !showAddHabitModal && (
+      {!initialAppMode && !showAddMemoryModal && !editingMemory && !editingTrip && !editingPartyEvent && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && !showAddTaskModal && !showSharedListModal && !showAddIdeaModal && !showAddSocialModal && !showAddHabitModal && (
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-white/10 z-[100]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}>
           <div className="flex items-center justify-around py-2 px-1">
             {[

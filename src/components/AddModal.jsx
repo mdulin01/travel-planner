@@ -275,7 +275,7 @@ const AddModal = React.memo(({ type, tripId, onClose, addItem, updateItem, editI
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={handleBackgroundClick}
     >
-      <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl max-h-[85dvh] overflow-y-auto">
         {showConfirmClose && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 rounded-3xl">
             <div className="bg-white rounded-2xl p-6 m-4 shadow-xl">

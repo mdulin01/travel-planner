@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Safe area utilities for iOS PWA standalone mode */
+.pt-safe {
+  padding-top: max(1rem, env(safe-area-inset-top, 1rem));
+}
+@media (min-width: 768px) {
+  .pt-safe {
+    padding-top: max(2rem, env(safe-area-inset-top, 2rem));
+  }
+}
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+}
+
 @keyframes searchPulse {
   0% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.6); }
   40% { box-shadow: 0 0 0 8px rgba(168, 85, 247, 0.3); }

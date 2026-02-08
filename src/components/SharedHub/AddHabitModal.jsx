@@ -85,7 +85,7 @@ const AddHabitModal = React.memo(({ onClose, onSave, editHabit, currentUser }) =
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={handleBackgroundClick}
     >
-      <div className="bg-slate-800 rounded-3xl shadow-2xl max-w-lg mx-auto w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-slate-800 rounded-3xl shadow-2xl max-w-lg mx-auto w-full max-h-[85dvh] flex flex-col overflow-hidden">
         <div className="h-1 bg-gradient-to-r from-green-400 via-emerald-500 to-teal-500" />
 
         {/* Header */}

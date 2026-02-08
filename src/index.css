@@ -26,3 +26,13 @@
   outline-offset: 2px;
   border-radius: 1rem;
 }
+
+/* FAB positioning: bottom-right on mobile, top-left on desktop */
+.fab-mobile-bottom {
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px) + 8px);
+}
+@media (min-width: 768px) {
+  .fab-mobile-bottom {
+    bottom: auto;
+  }
+}

@@ -11321,12 +11321,12 @@ export default function TripPlanner() {
 
       {/* Floating Action Button (FAB) - Quick Add - Aligned with section navigation buttons */}
       {isOwner && !initialAppMode && !showAddMemoryModal && !editingMemory && !editingTrip && !editingPartyEvent && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && !showAddTaskModal && !showSharedListModal && !showAddIdeaModal && !showAddSocialModal && !showAddHabitModal && (
-        <div className="fixed md:bottom-8 right-4 md:right-6 z-[90]" style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px) + 8px)' }}>
+        <div className="fixed right-4 md:top-24 md:left-6 md:right-auto md:bottom-auto z-[90] fab-mobile-bottom">
           {/* FAB Menu - Compact 3x3 Grid */}
           {showAddNewMenu && (
             <>
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[89]" onClick={() => setShowAddNewMenu(false)} />
-              <div className="absolute bottom-16 right-0 z-[91] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
+              <div className="absolute bottom-16 right-0 md:bottom-auto md:top-16 md:left-0 md:right-auto z-[91] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
                 style={{ animation: 'fabGridIn 0.15s ease-out both' }}>
                 <div className="grid grid-cols-3 gap-3">
                   {[

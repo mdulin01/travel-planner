@@ -11352,22 +11352,12 @@ export default function TripPlanner() {
           )}
           {/* Nav bar background */}
           <div className="relative bg-slate-900 border-t border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-            {/* Splash crater effect behind FAB */}
-            {isOwner && (
-              <div className="absolute left-1/2 -translate-x-1/2 -top-3 w-20 h-6 z-[99] pointer-events-none">
-                {/* Curved notch cutout illusion */}
-                <div className="absolute inset-0 rounded-t-[50%] bg-slate-900" />
-                {/* Inner glow splash */}
-                <div className={`absolute -top-1 left-1/2 -translate-x-1/2 w-16 h-4 rounded-t-[50%] blur-sm transition-colors duration-200 ${showAddNewMenu ? 'bg-pink-500/30' : 'bg-purple-500/30'}`} style={{ animation: 'splashPulse 3s ease-in-out infinite' }} />
-                {/* Ripple rings */}
-                <div className={`absolute -top-0.5 left-1/2 -translate-x-1/2 w-[4.5rem] h-3 rounded-t-[50%] border-t transition-colors duration-200 ${showAddNewMenu ? 'border-pink-400/20' : 'border-purple-400/20'}`} />
-              </div>
-            )}
+            {/* Atlas is the visual bridge between FAB and nav — no splash needed */}
             {/* Raised FAB button - centered, overlapping top of nav */}
             {isOwner && (
               <button
                 onClick={() => setShowAddNewMenu(!showAddNewMenu)}
-                className={`absolute left-1/2 -translate-x-1/2 -top-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 z-[101] ${
+                className={`absolute left-1/2 -translate-x-1/2 -top-14 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 z-[101] ${
                   showAddNewMenu
                     ? 'bg-gradient-to-r from-pink-500 to-rose-500 rotate-45'
                     : 'bg-gradient-to-r from-purple-500 to-violet-600'
@@ -11423,10 +11413,12 @@ export default function TripPlanner() {
                       {section.emoji}
                     </span>
                   )}
-                  <span className={`text-[10px] font-medium transition-colors ${activeSection === section.id ? 'text-white' : 'text-white/40'}`}>
-                    {section.label}
-                  </span>
-                  {activeSection === section.id && (
+                  {idx !== 2 && (
+                    <span className={`text-[10px] font-medium transition-colors ${activeSection === section.id ? 'text-white' : 'text-white/40'}`}>
+                      {section.label}
+                    </span>
+                  )}
+                  {activeSection === section.id && idx !== 2 && (
                     <div className={`absolute -bottom-0.5 w-6 h-0.5 rounded-full bg-gradient-to-r ${section.gradient}`} />
                   )}
                 </button>

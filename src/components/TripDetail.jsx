@@ -164,8 +164,8 @@ const TripDetail = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/80 z-40 overflow-auto">
-      <div className="min-h-screen p-4 md:p-8">
+    <div className="mt-8 mb-8">
+      <div className="p-4 md:p-8">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className={`bg-gradient-to-r ${trip.color} rounded-3xl p-6 md:p-8 text-white relative overflow-hidden mb-6`}>
@@ -334,7 +334,7 @@ const TripDetail = ({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={addTripToCalendar}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-white/20 rounded-lg text-sm font-medium text-white hover:bg-white/5 transition"
                   >
                     <Calendar className="w-4 h-4" />
                     Add to Calendar
@@ -349,7 +349,7 @@ const TripDetail = ({
 
           {/* Sections */}
           {['flights', 'hotels', 'events'].map(type => (
-            <div key={type} className="bg-white rounded-3xl p-6 mb-6 shadow-lg">
+            <div key={type} className="bg-white/10 rounded-3xl p-6 mb-6 border border-white/20">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   {type === 'flights' && <Plane className="w-6 h-6 text-indigo-500" />}
@@ -372,7 +372,7 @@ const TripDetail = ({
               ) : (
                 <div className="space-y-3">
                   {details[type].map(item => (
-                    <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl group">
+                    <div key={item.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl group">
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-slate-800">
                           {type === 'flights' && (item.airline && item.flightNo ? `${item.airline} ${item.flightNo}` : item.flightNo || 'Flight')}
@@ -433,7 +433,7 @@ const TripDetail = ({
           ))}
 
           {/* Links Section */}
-          <div className="bg-white rounded-3xl p-6 mb-6 shadow-lg">
+          <div className="bg-white/10 rounded-3xl p-6 mb-6 border border-white/20">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <Link className="w-6 h-6 text-purple-500" />
@@ -457,7 +457,7 @@ const TripDetail = ({
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex bg-slate-50 rounded-2xl overflow-hidden group hover:shadow-md transition"
+                    className="flex bg-white/5 rounded-2xl overflow-hidden group hover:shadow-md transition"
                   >
                     {link.image && (
                       <div className="w-24 h-24 flex-shrink-0">
@@ -504,7 +504,7 @@ const TripDetail = ({
           </div>
 
           {/* Packing List Section */}
-          <div className="bg-white rounded-3xl p-6 mb-6 shadow-lg">
+          <div className="bg-white/10 rounded-3xl p-6 mb-6 border border-white/20">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🧳</span>
@@ -539,7 +539,7 @@ const TripDetail = ({
                 {details.packingList.map(item => (
                   <div
                     key={item.id}
-                    className={`flex items-center justify-between p-3 rounded-xl transition ${item.packed ? 'bg-green-50' : 'bg-slate-50'}`}
+                    className={`flex items-center justify-between p-3 rounded-xl transition ${item.packed ? 'bg-green-50' : 'bg-white/5'}`}
                   >
                     <div className="flex items-center gap-3">
                       <button
@@ -557,7 +557,7 @@ const TripDetail = ({
                       >
                         {item.packed && <Check className="w-4 h-4" />}
                       </button>
-                      <span className={item.packed ? 'line-through text-slate-400' : 'text-slate-700'}>{item.item}</span>
+                      <span className={item.packed ? 'line-through text-slate-400' : 'text-white'}>{item.item}</span>
                     </div>
                     <span className="text-xs text-slate-400">{item.addedBy}</span>
                   </div>
@@ -567,7 +567,7 @@ const TripDetail = ({
           </div>
 
           {/* Budget Tracker Section */}
-          <div className="bg-white rounded-3xl p-6 mb-6 shadow-lg">
+          <div className="bg-white/10 rounded-3xl p-6 mb-6 border border-white/20">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">💰</span>
@@ -605,7 +605,7 @@ const TripDetail = ({
               return (
                 <>
                   <div className="grid grid-cols-3 gap-4 mb-4">
-                    <div className="bg-slate-50 rounded-xl p-3 text-center">
+                    <div className="bg-white/5 rounded-xl p-3 text-center">
                       <div className="text-2xl font-bold text-slate-800">${total.toFixed(0)}</div>
                       <div className="text-xs text-slate-500">Total</div>
                     </div>
@@ -628,8 +628,8 @@ const TripDetail = ({
                   {expenses.length > 0 && (
                     <div className="space-y-2">
                       {expenses.map(exp => (
-                        <div key={exp.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
-                          <span className="text-slate-700">{exp.description}</span>
+                        <div key={exp.id} className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                          <span className="text-white">{exp.description}</span>
                           <div className="flex items-center gap-2">
                             <span className={`text-sm font-medium ${exp.paidBy === 'Mike' ? 'text-teal-600' : 'text-purple-600'}`}>
                               ${exp.amount} ({exp.paidBy})
@@ -645,7 +645,7 @@ const TripDetail = ({
           </div>
 
           {/* Places to Visit Section */}
-          <div className="bg-white rounded-3xl p-6 mb-6 shadow-lg">
+          <div className="bg-white/10 rounded-3xl p-6 mb-6 border border-white/20">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <MapPin className="w-6 h-6 text-rose-500" />
@@ -675,14 +675,14 @@ const TripDetail = ({
                 {details.places.map(place => (
                   <div
                     key={place.id}
-                    className={`p-3 rounded-xl flex items-center justify-between transition ${place.visited ? 'bg-green-50' : 'bg-slate-50'}`}
+                    className={`p-3 rounded-xl flex items-center justify-between transition ${place.visited ? 'bg-green-50' : 'bg-white/5'}`}
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-xl">
                         {place.type === 'restaurant' ? '🍽️' : place.type === 'bar' ? '🍸' : place.type === 'shop' ? '🛍️' : '🎯'}
                       </span>
                       <div>
-                        <div className={`font-medium ${place.visited ? 'text-green-700 line-through' : 'text-slate-700'}`}>{place.name}</div>
+                        <div className={`font-medium ${place.visited ? 'text-green-700 line-through' : 'text-white'}`}>{place.name}</div>
                         <div className="text-xs text-slate-400">{place.addedBy}</div>
                       </div>
                     </div>
@@ -708,7 +708,7 @@ const TripDetail = ({
           </div>
 
           {/* Photo Memories Section */}
-          <div className="bg-white rounded-3xl p-6 mb-6 shadow-lg">
+          <div className="bg-white/10 rounded-3xl p-6 mb-6 border border-white/20">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">📸</span>
@@ -761,7 +761,7 @@ const TripDetail = ({
           </div>
 
           {/* Shared Notes Section */}
-          <div className="bg-white rounded-3xl p-6 mb-6 shadow-lg">
+          <div className="bg-white/10 rounded-3xl p-6 mb-6 border border-white/20">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-2xl">📝</span>
               <h3 className="text-2xl font-bold text-slate-800">Shared Notes</h3>
@@ -774,7 +774,7 @@ const TripDetail = ({
               }}
               onBlur={() => saveToFirestore(null, null, tripDetails)}
               placeholder="Add notes, reminders, or ideas for this trip... 💭"
-              className="w-full h-32 p-4 bg-slate-50 rounded-xl border-2 border-transparent focus:border-purple-300 outline-none resize-none text-slate-700"
+              className="w-full h-32 p-4 bg-white/5 rounded-xl border-2 border-transparent focus:border-purple-300 outline-none resize-none text-white"
             />
           </div>
         </div>

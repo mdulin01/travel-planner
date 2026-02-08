@@ -196,3 +196,78 @@ export const ownerEmails = ['mdulin@gmail.com', 'adamjosephbritten@gmail.com'];
 // Calendar months and days
 export const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// ========== SHARED HUB CONSTANTS ==========
+
+export const timeHorizons = [
+  { value: 'today', label: 'Today', emoji: '📌' },
+  { value: 'this-week', label: 'This Week', emoji: '📅' },
+  { value: 'this-month', label: 'This Month', emoji: '🗓️' },
+  { value: 'this-quarter', label: 'This Quarter', emoji: '🎯' },
+  { value: 'this-year', label: 'This Year', emoji: '⭐' },
+  { value: 'someday', label: 'Someday', emoji: '💭' },
+];
+
+export const listCategories = [
+  { value: 'shopping', label: 'Shopping', emoji: '🛒' },
+  { value: 'groceries', label: 'Groceries', emoji: '🥛' },
+  { value: 'packing', label: 'Packing', emoji: '🧳' },
+  { value: 'todo', label: 'To-Do', emoji: '✅' },
+  { value: 'custom', label: 'Custom', emoji: '📝' },
+];
+
+export const ideaCategories = [
+  { value: 'trip', label: 'Trip', emoji: '✈️' },
+  { value: 'recipe', label: 'Recipe', emoji: '🍝' },
+  { value: 'date', label: 'Date Night', emoji: '🍷' },
+  { value: 'home', label: 'Home', emoji: '🏠' },
+  { value: 'gift', label: 'Gift', emoji: '🎁' },
+  { value: 'activity', label: 'Activity', emoji: '🎯' },
+  { value: 'career', label: 'Career', emoji: '💼' },
+  { value: 'other', label: 'Other', emoji: '💡' },
+];
+
+export const taskPriorities = [
+  { value: 'low', label: 'Low', color: 'text-slate-400', bg: 'bg-slate-500/20' },
+  { value: 'medium', label: 'Medium', color: 'text-amber-400', bg: 'bg-amber-500/20' },
+  { value: 'high', label: 'High', color: 'text-red-400', bg: 'bg-red-500/20' },
+];
+
+export const taskStatuses = ['pending', 'in-progress', 'done'];
+export const ideaStatuses = ['inbox', 'saved', 'planned', 'done'];
+
+export const socialTypes = [
+  { value: 'text', label: 'Text', emoji: '💬' },
+  { value: 'call', label: 'Call', emoji: '📞' },
+  { value: 'meetup', label: 'Meet Up', emoji: '☕' },
+  { value: 'gathering', label: 'Gathering', emoji: '🎉' },
+  { value: 'invite', label: 'Invite', emoji: '✉️' },
+  { value: 'dinner', label: 'Dinner', emoji: '🍽️' },
+  { value: 'activity', label: 'Activity', emoji: '🎳' },
+  { value: 'other', label: 'Other', emoji: '👋' },
+];
+
+export const socialStatuses = ['planned', 'done'];
+
+// ========== HABITS CONSTANTS ==========
+
+export const habitCategories = [
+  { value: 'health', label: 'Health', emoji: '💪' },
+  { value: 'relationship', label: 'Relationship', emoji: '💕' },
+  { value: 'finance', label: 'Finance', emoji: '💰' },
+  { value: 'mindfulness', label: 'Mindfulness', emoji: '🧘' },
+  { value: 'home', label: 'Home', emoji: '🏠' },
+  { value: 'social', label: 'Social', emoji: '👥' },
+  { value: 'growth', label: 'Growth', emoji: '📚' },
+  { value: 'other', label: 'Other', emoji: '✨' },
+];
+
+export const habitFrequencies = [
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekdays', label: 'Weekdays' },
+  { value: 'weekends', label: 'Weekends' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'custom', label: 'Custom' },
+];
+
+export const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

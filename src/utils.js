@@ -148,3 +148,160 @@ export const checkIsOwner = (email, ownerEmails) => {
     lowerEmail.includes(ownerEmail.split('@')[0])
   );
 };
+
+// ========== SHARED HUB UTILITIES ==========
+
+// Get display label for a time horizon
+export const getTimeHorizonLabel = (horizon) => {
+  const labels = {
+    'today': 'Today',
+    'this-week': 'This Week',
+    'this-month': 'This Month',
+    'this-quarter': 'This Quarter',
+    'this-year': 'This Year',
+    'someday': 'Someday',
+  };
+  return labels[horizon] || horizon;
+};
+
+// Check if a task is due today
+export const isTaskDueToday = (task) => {
+  if (task.timeHorizon === 'today') return true;
+  if (!task.dueDate) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = parseLocalDate(task.dueDate);
+  due.setHours(0, 0, 0, 0);
+  return due.getTime() === today.getTime();
+};
+
+// Check if a task is due this week
+export const isTaskDueThisWeek = (task) => {
+  if (task.timeHorizon === 'today' || task.timeHorizon === 'this-week') return true;
+  if (!task.dueDate) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(today);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const due = parseLocalDate(task.dueDate);
+  return due >= today && due <= weekEnd;
+};
+
+// Check if task matches a given time horizon filter
+export const taskMatchesHorizon = (task, horizon) => {
+  // Cumulative: "this-week" includes today tasks, "this-month" includes this-week, etc.
+  const horizonOrder = ['today', 'this-week', 'this-month', 'this-quarter', 'this-year', 'someday'];
+  const selectedIdx = horizonOrder.indexOf(horizon);
+  const taskIdx = horizonOrder.indexOf(task.timeHorizon);
+
+  // If task has an explicit timeHorizon that falls within the selected range, include it
+  if (taskIdx !== -1 && selectedIdx !== -1 && taskIdx <= selectedIdx) return true;
+  // 'someday' selected shows everything
+  if (horizon === 'someday') return true;
+
+  if (!task.dueDate) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = parseLocalDate(task.dueDate);
+  switch (horizon) {
+    case 'today': return due.getTime() === today.getTime();
+    case 'this-week': {
+      const weekEnd = new Date(today);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+      return due >= today && due <= weekEnd;
+    }
+    case 'this-month': {
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      return due >= today && due <= monthEnd;
+    }
+    case 'this-quarter': {
+      const quarterEnd = new Date(today);
+      quarterEnd.setMonth(quarterEnd.getMonth() + 3);
+      return due >= today && due <= quarterEnd;
+    }
+    case 'this-year': {
+      const yearEnd = new Date(today.getFullYear(), 11, 31);
+      return due >= today && due <= yearEnd;
+    }
+    default: return false;
+  }
+};
+
+// Extract domain from URL for display
+export const getDomainFromUrl = (url) => {
+  if (!url) return '';
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname.replace('www.', '');
+  } catch {
+    return url.substring(0, 30);
+  }
+};
+
+// Fetch URL metadata (Open Graph) for link previews
+// Uses Microlink API (free, no key, CORS-friendly)
+export const fetchUrlMetadata = async (url) => {
+  if (!url || !url.trim()) return null;
+  try {
+    const encoded = encodeURIComponent(url.trim());
+    const res = await fetch(`https://api.microlink.io/?url=${encoded}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.status !== 'success' || !json.data) return null;
+    const { title, description, image, logo } = json.data;
+    return {
+      title: title || '',
+      description: description || '',
+      image: image?.url || logo?.url || '',
+    };
+  } catch {
+    return null;
+  }
+};
+
+// Auto-suggest idea category from URL domain
+export const suggestIdeaCategoryFromUrl = (url) => {
+  if (!url) return 'other';
+  const lower = url.toLowerCase();
+  if (lower.includes('airbnb') || lower.includes('booking.com') || lower.includes('hotels') || lower.includes('tripadvisor') || lower.includes('expedia')) return 'trip';
+  if (lower.includes('allrecipes') || lower.includes('recipe') || lower.includes('cooking') || lower.includes('food') || lower.includes('epicurious') || lower.includes('bonappetit')) return 'recipe';
+  if (lower.includes('yelp') || lower.includes('opentable') || lower.includes('resy') || lower.includes('restaurant')) return 'date';
+  if (lower.includes('zillow') || lower.includes('redfin') || lower.includes('apartments') || lower.includes('ikea') || lower.includes('wayfair')) return 'home';
+  if (lower.includes('amazon') || lower.includes('etsy') || lower.includes('gift')) return 'gift';
+  if (lower.includes('eventbrite') || lower.includes('meetup') || lower.includes('ticketmaster')) return 'activity';
+  if (lower.includes('linkedin') || lower.includes('indeed') || lower.includes('glassdoor')) return 'career';
+  return 'other';
+};
+
+// ========== FILE CONVERSION UTILITIES ==========
+
+// Convert HEIC/HEIF image to JPEG
+// Returns converted File object or original file if not HEIC
+export const convertHeicToJpeg = async (file) => {
+  // Check if heic2any is available (dynamically imported)
+  if (!window.heic2any) {
+    console.warn('heic2any not available, returning original file');
+    return file;
+  }
+
+  if (!isHeicFile(file)) {
+    return file; // Not a HEIC file, return as-is
+  }
+
+  try {
+    const convertedBlob = await window.heic2any({
+      blob: file,
+      toType: 'image/jpeg',
+      quality: 0.9,
+    });
+
+    // Generate new filename with .jpg extension
+    const originalName = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+    const newFileName = `${originalName}.jpg`;
+
+    return new File([convertedBlob], newFileName, { type: 'image/jpeg' });
+  } catch (error) {
+    console.error('HEIC conversion failed:', error);
+    throw new Error('Failed to convert HEIC image. Please try a different format.');
+  }
+};

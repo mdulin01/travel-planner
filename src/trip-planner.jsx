@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Calendar, Plane, Hotel, Music, MapPin, Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Heart, Anchor, Sun, Star, Clock, Users, ExternalLink, Sparkles, Pencil, Check, MoreVertical, Trash2, Palette, Image, Link, Globe, Loader, LogIn, LogOut, User, UserPlus, Share2, Upload, Folder, Edit3, CheckSquare, RefreshCw, Camera } from 'lucide-react';
+import { Calendar, Plane, Hotel, Music, MapPin, Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Heart, Anchor, Sun, Star, Clock, Users, ExternalLink, Sparkles, Pencil, Check, MoreVertical, Trash2, Palette, Image, Link, Globe, Loader, LogIn, LogOut, User, UserPlus, Share2, Upload, Folder, Edit3, CheckSquare, RefreshCw, Camera, Search, Bell, BellOff } from 'lucide-react';
 
 // Import constants and utilities
 import {
   emojiSuggestions, travelEmojis, tripColors, bougieLabels, travelQuotes,
   achievementDefinitions, eventCategories, defaultPackingItems, experienceDatabase,
-  airlines, ownerEmails, months, days, MAX_FILE_SIZE_MB, MAX_FILE_SIZE_BYTES
+  airlines, ownerEmails, months, days, MAX_FILE_SIZE_MB, MAX_FILE_SIZE_BYTES,
+  timeHorizons, listCategories, ideaCategories, taskPriorities, socialTypes, habitCategories
 } from './constants';
 import {
   parseLocalDate, formatDate, validateFileSize, getEmojiSuggestion,
   getRandomExperience, getDaysInMonth, isHeicFile, getSafeFileName,
-  getCompanionDisplayName
+  getCompanionDisplayName, isTaskDueToday, isTaskDueThisWeek, taskMatchesHorizon, getDomainFromUrl
 } from './utils';
 
 // Component imports
@@ -24,6 +25,26 @@ import OpenDateModal from './components/OpenDateModal';
 import CompanionsModal from './components/CompanionsModal';
 import MyProfileModal from './components/MyProfileModal';
 import TripDetail from './components/TripDetail';
+
+// Hooks
+import { useSharedHub } from './hooks/useSharedHub';
+import { useTravel } from './hooks/useTravel';
+import { useFitness } from './hooks/useFitness';
+
+// Contexts
+import { SharedHubProvider } from './contexts/SharedHubContext';
+
+// Shared Hub imports
+import AddTaskModal from './components/SharedHub/AddTaskModal';
+import SharedListModal from './components/SharedHub/SharedListModal';
+import AddIdeaModal from './components/SharedHub/AddIdeaModal';
+import TaskCard from './components/SharedHub/TaskCard';
+import ListCard from './components/SharedHub/ListCard';
+import IdeaCard from './components/SharedHub/IdeaCard';
+import AddSocialModal from './components/SharedHub/AddSocialModal';
+import SocialCard from './components/SharedHub/SocialCard';
+import AddHabitModal from './components/SharedHub/AddHabitModal';
+import HabitCard from './components/SharedHub/HabitCard';
 
 // Firebase imports
 import { initializeApp } from 'firebase/app';
@@ -50,6 +71,7 @@ import {
   uploadBytes,
   getDownloadURL
 } from 'firebase/storage';
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import heic2any from 'heic2any';
 
 // Import your Firebase config
@@ -60,6 +82,14 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+let messaging = null;
+try {
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'Notification' in window) {
+    messaging = getMessaging(app);
+  }
+} catch (e) {
+  console.warn('FCM not supported on this device:', e.message);
+}
 const googleProvider = new GoogleAuthProvider();
 
 // Rainbow gradient for pride flair
@@ -429,7 +459,75 @@ export default function TripPlanner() {
     return null;
   })();
 
-  const [activeSection, setActiveSection] = useState(initialAppMode || 'home'); // 'home' | 'travel' | 'fitness' | 'nutrition' | 'events' | 'lifePlanning' | 'business' | 'memories'
+  const [activeSection, setActiveSection] = useState(initialAppMode || 'home'); // 'home' (hub) | 'travel' | 'fitness' | 'nutrition' | 'events' | 'lifePlanning' | 'business' | 'memories'
+
+  // User profile selection
+  const [currentUser, setCurrentUser] = useState('Mike');
+
+  // Ref to store saveSharedHub function (defined later in useEffect)
+  const saveSharedHubRef = useRef(() => {});
+
+  // ========== SHARED HUB: All state and operations from hook =====
+  const sharedHub = useSharedHub(currentUser, saveSharedHubRef.current, showToast);
+  const {
+    sharedTasks, sharedLists, sharedIdeas, sharedSocial, sharedHabits,
+    addTask, updateTask, deleteTask, completeTask, highlightTask,
+    addList, updateList, deleteList, addListItem, toggleListItem, deleteListItem, highlightList,
+    addIdea, updateIdea, deleteIdea, highlightIdea,
+    addSocial, updateSocial, deleteSocial, completeSocial, highlightSocial,
+    addHabit, updateHabit, deleteHabit, toggleHabitDay, highlightHabit,
+    hubSubView, setHubSubView, hubTaskFilter, setHubTaskFilter, hubTaskSort, setHubTaskSort,
+    hubListFilter, setHubListFilter, hubIdeaFilter, setHubIdeaFilter, hubIdeaStatusFilter, setHubIdeaStatusFilter,
+    hubSocialFilter, setHubSocialFilter, hubHabitFilter, setHubHabitFilter,
+    collapsedSections, toggleDashSection,
+    setSharedTasks, setSharedLists, setSharedIdeas, setSharedSocial, setSharedHabits,
+    // Hub modal states (now from context)
+    showAddTaskModal, setShowAddTaskModal,
+    showSharedListModal, setShowSharedListModal,
+    showAddIdeaModal, setShowAddIdeaModal,
+    showAddSocialModal, setShowAddSocialModal,
+    showAddHabitModal, setShowAddHabitModal,
+  } = sharedHub;
+
+  // Refs for dependencies defined later
+  const saveToFirestoreRef = useRef(() => {});
+  const tripColorsRef = useRef([]);
+
+  // ========== TRAVEL: All state and operations from hook =====
+  const travel = useTravel(user, currentUser, saveToFirestoreRef.current, showToast, getEmojiSuggestion, tripColorsRef.current);
+  const {
+    trips, tripDetails, wishlist,
+    addNewTrip, updateTripDates, deleteTrip, updateTripColor, updateTripEmoji, updateTripCoverImage,
+    convertToAdventure, addItem: hookAddItem, removeItem: hookRemoveItem, updateItem: hookUpdateItem,
+    setTrips, setTripDetails, setWishlist,
+    showNewTripModal, setShowNewTripModal,
+    showAddModal, setShowAddModal,
+  } = travel;
+
+  // Ref for saveFitness (defined later)
+  const saveFitnessRef = useRef(() => {});
+
+  // ========== FITNESS: All state and operations from hook =====
+  // Note: generateTrainingWeeks, triathlonTrainingPlan, indyHalfTrainingPlan are defined later
+  const generateTrainingWeeksRef = useRef(() => []);
+  const triathlonTrainingPlanRef = useRef([]);
+  const indyHalfTrainingPlanRef = useRef([]);
+
+  const fitness = useFitness(saveFitnessRef.current, showToast, generateTrainingWeeksRef.current, triathlonTrainingPlanRef.current, indyHalfTrainingPlanRef.current);
+  const {
+    fitnessEvents, fitnessTrainingPlans, selectedFitnessEvent, fitnessViewMode,
+    updateFitnessEvent, deleteFitnessEvent,
+    setFitnessEvents, setFitnessTrainingPlans, setSelectedFitnessEvent, setFitnessViewMode,
+    showAddFitnessEventModal, setShowAddFitnessEventModal, editingFitnessEvent, setEditingFitnessEvent,
+  } = fitness;
+
+  // Search state
+  const [showSearch, setShowSearch] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchFilters, setSearchFilters] = useState({ tasks: true, lists: true, ideas: true, social: true, habits: true, travel: true, events: true, fitness: true, memories: true });
+  const [searchHighlightId, setSearchHighlightId] = useState(null); // { type, id } - scroll-to target after search nav
   const [memoriesView, setMemoriesView] = useState('timeline'); // 'timeline' | 'events' | 'media'
   const [collapsedMemorySections, setCollapsedMemorySections] = useState({}); // { sectionId: true/false }
   const [timelineSortOrder, setTimelineSortOrder] = useState('newest'); // 'newest' | 'oldest'
@@ -519,7 +617,7 @@ export default function TripPlanner() {
 
     const interval = setInterval(() => {
       setHeroPhotoIndex(prev => (prev + 1) % photos.length);
-    }, 5000); // Change photo every 5 seconds
+    }, 20000); // Change photo every 20 seconds
 
     return () => clearInterval(interval);
   }, [getAllMemoryPhotos]);
@@ -880,23 +978,18 @@ export default function TripPlanner() {
   });
 
   // App state
-  const [trips, setTrips] = useState(defaultTrips);
-  const [wishlist, setWishlist] = useState(defaultWishlist);
   const [companions, setCompanions] = useState(defaultCompanions);
   const [openDates, setOpenDates] = useState(defaultOpenDates);
   const [showOpenDateModal, setShowOpenDateModal] = useState(false);
   const [showCompanionsModal, setShowCompanionsModal] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
-  const [tripDetails, setTripDetails] = useState(initialTripDetails);
+  const [editingTrip, setEditingTrip] = useState(null); // Trip being edited (matches events pattern)
   const [currentMonth, setCurrentMonth] = useState(new Date(2026, 2, 1)); // March 2026
-  const [showAddModal, setShowAddModal] = useState(null); // { type, tripId } or null
-  const [showNewTripModal, setShowNewTripModal] = useState(null); // 'adventure' or 'wishlist'
   const [showTripMenu, setShowTripMenu] = useState(null); // trip id for menu
   const [showColorPicker, setShowColorPicker] = useState(null); // trip id for color picker
   const [showEmojiEditor, setShowEmojiEditor] = useState(null); // trip id for emoji editor
   const [showImageEditor, setShowImageEditor] = useState(null); // trip id for image editor
   const [showLinkModal, setShowLinkModal] = useState(null); // trip id for link modal
-  const [currentUser, setCurrentUser] = useState('Mike');
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [googleCalendarEvents, setGoogleCalendarEvents] = useState([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -950,6 +1043,7 @@ export default function TripPlanner() {
     { name: 'Sky', gradient: 'from-blue-400 to-indigo-500' },
     { name: 'Coral', gradient: 'from-pink-500 to-purple-500' },
   ];
+  tripColorsRef.current = tripColors;
 
   // Vibration helper - works on mobile devices
   const vibrate = (pattern) => {
@@ -1342,6 +1436,12 @@ export default function TripPlanner() {
     ], totalMiles: 0, weekNotes: '🏁 RACE WEEK! Sprint Tri - You got this! 🎉', isRaceWeek: true }
   ].map(week => ({ ...week, id: `triathlon-2026-week-${week.weekNumber}` }));
 
+  // Update refs for training plans (used by fitness hook)
+  useEffect(() => {
+    triathlonTrainingPlanRef.current = triathlonTrainingPlan;
+    indyHalfTrainingPlanRef.current = indyHalfTrainingPlan;
+  }, [triathlonTrainingPlan, indyHalfTrainingPlan]);
+
   // Generate generic training weeks for other events
   const generateTrainingWeeks = (startDate, eventDate, eventId) => {
     const weeks = [];
@@ -1408,13 +1508,13 @@ export default function TripPlanner() {
     return weeks;
   };
 
-  // Fitness state
-  const [fitnessEvents, setFitnessEvents] = useState(defaultFitnessEvents);
-  const [fitnessTrainingPlans, setFitnessTrainingPlans] = useState({});
-  const [selectedFitnessEvent, setSelectedFitnessEvent] = useState(null);
-  const [fitnessViewMode, setFitnessViewMode] = useState('events'); // 'events' | 'training' | 'stats'
-  const [showAddFitnessEventModal, setShowAddFitnessEventModal] = useState(false);
-  const [editingFitnessEvent, setEditingFitnessEvent] = useState(null);
+  // Update refs for fitness hook dependencies
+  useEffect(() => {
+    generateTrainingWeeksRef.current = generateTrainingWeeks;
+  }, [generateTrainingWeeks]);
+
+  // Fitness state and operations now in useFitness hook
+  // Modal form data
   const [newFitnessEventData, setNewFitnessEventData] = useState({
     name: '',
     emoji: '🏃',
@@ -1542,6 +1642,88 @@ export default function TripPlanner() {
 
     return () => unsubscribe();
   }, []); // Empty dependency - listener created once, uses refs for current data
+
+  // ── Push Notifications Setup ──
+  // Check if notifications are already enabled on mount
+  useEffect(() => {
+    if (user && 'Notification' in window && Notification.permission === 'granted') {
+      setNotificationsEnabled(true);
+    }
+  }, [user]);
+
+  // Listen for foreground messages when enabled
+  useEffect(() => {
+    if (!messaging || !notificationsEnabled) return;
+    const unsub = onMessage(messaging, (payload) => {
+      console.log('Foreground push:', payload);
+      showToast(payload.notification?.body || 'New notification!', 'info');
+    });
+    return () => unsub();
+  }, [notificationsEnabled]);
+
+  const enableNotifications = async () => {
+    if (!user) return;
+    setNotificationsLoading(true);
+    try {
+      // Check basic support
+      if (!('serviceWorker' in navigator) || !('Notification' in window)) {
+        showToast('Add this app to your Home Screen first, then enable notifications', 'error');
+        setNotificationsLoading(false);
+        return;
+      }
+
+      // Register the FCM service worker
+      const swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        showToast('Notification permission denied. Check your browser settings.', 'error');
+        setNotificationsLoading(false);
+        return;
+      }
+
+      // Initialize messaging if not already done
+      let msg = messaging;
+      if (!msg) {
+        try {
+          const { getMessaging: getMsgLazy } = await import('firebase/messaging');
+          msg = getMsgLazy(app);
+        } catch (e) {
+          console.error('FCM init failed:', e);
+          showToast('Push notifications not supported on this device', 'error');
+          setNotificationsLoading(false);
+          return;
+        }
+      }
+
+      // Get FCM token
+      const token = await getToken(msg, {
+        serviceWorkerRegistration: swReg,
+      });
+
+      if (token) {
+        // Store token in Firestore under fcmTokens document
+        const tokenData = {};
+        const userKey = currentUser?.toLowerCase() || 'unknown';
+        tokenData[userKey] = token;
+        await setDoc(doc(db, 'tripData', 'fcmTokens'), tokenData, { merge: true });
+
+        setNotificationsEnabled(true);
+        showToast('Notifications enabled!', 'success');
+      } else {
+        showToast('Could not get notification token. Try adding the app to your Home Screen first.', 'error');
+      }
+    } catch (error) {
+      console.error('Error enabling notifications:', error);
+      showToast('Could not enable notifications: ' + error.message, 'error');
+    }
+    setNotificationsLoading(false);
+  };
+
+  const disableNotifications = () => {
+    setNotificationsEnabled(false);
+    showToast('Notifications paused', 'info');
+  };
 
   // Re-check guest status when trips change (handles Firestore data loading after initial auth)
   useEffect(() => {
@@ -1684,10 +1866,29 @@ export default function TripPlanner() {
       }
     );
 
+    // Subscribe to shared hub (lists, tasks, ideas)
+    const hubUnsubscribe = onSnapshot(
+      doc(db, 'tripData', 'sharedHub'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.lists) setSharedLists(data.lists);
+          if (data.tasks) setSharedTasks(data.tasks);
+          if (data.ideas) setSharedIdeas(data.ideas);
+          if (data.social) setSharedSocial(data.social);
+          if (data.habits) setSharedHabits(data.habits);
+        }
+      },
+      (error) => {
+        console.error('Error loading shared hub data:', error);
+      }
+    );
+
     return () => {
       tripsUnsubscribe();
       fitnessUnsubscribe();
       partyEventsUnsubscribe();
+      hubUnsubscribe();
     };
   }, [user]);
 
@@ -2071,7 +2272,7 @@ export default function TripPlanner() {
   };
 
   // Save fitness data to Firestore
-  const saveFitnessToFirestore = async (newEvents, newTrainingPlans) => {
+  const saveFitnessToFirestore = useCallback(async (newEvents, newTrainingPlans) => {
     if (!user) return;
 
     try {
@@ -2085,7 +2286,12 @@ export default function TripPlanner() {
       console.error('Error saving fitness to Firestore:', error);
       showToast('Failed to save fitness data. Please try again.', 'error');
     }
-  };
+  }, [user, fitnessEvents, fitnessTrainingPlans, currentUser, showToast]);
+
+  // Update the ref so the hook can use the actual saveFitnessToFirestore function
+  useEffect(() => {
+    saveFitnessRef.current = saveFitnessToFirestore;
+  }, [saveFitnessToFirestore]);
 
   // Save party/social events to Firestore
   const savePartyEventsToFirestore = async (newEvents) => {
@@ -2103,42 +2309,186 @@ export default function TripPlanner() {
     }
   };
 
-  // Update a training week
-  const updateTrainingWeek = async (eventId, weekId, updates) => {
-    const newPlans = { ...fitnessTrainingPlans };
+  // ========== SHARED HUB SAVE & CRUD ==========
+  const saveSharedHub = useCallback(async (newLists, newTasks, newIdeas, newSocial, newHabits) => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'tripData', 'sharedHub'), {
+        lists: newLists || sharedLists,
+        tasks: newTasks || sharedTasks,
+        ideas: newIdeas || sharedIdeas,
+        social: newSocial || sharedSocial,
+        habits: newHabits || sharedHabits,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: currentUser
+      });
+    } catch (error) {
+      console.error('Error saving shared hub:', error);
+      showToast('Failed to save. Please try again.', 'error');
+    }
+  }, [user, sharedLists, sharedTasks, sharedIdeas, sharedSocial, sharedHabits, currentUser, showToast]);
 
-    // Initialize plan if it doesn't exist
-    if (!newPlans[eventId]) {
-      // Use hardcoded plans for specific events
-      if (eventId === 'triathlon-2026') {
-        newPlans[eventId] = JSON.parse(JSON.stringify(triathlonTrainingPlan));
-      } else if (eventId === 'indy-half-2026') {
-        newPlans[eventId] = JSON.parse(JSON.stringify(indyHalfTrainingPlan));
+  // Update the ref so the hook can use the actual saveSharedHub function
+  useEffect(() => {
+    saveSharedHubRef.current = saveSharedHub;
+  }, [saveSharedHub]);
+
+  // Task CRUD
+  // ===== All task/list/idea/social/habit CRUD ops now in useSharedHub hook =====
+
+  const promoteIdeaToTask = (idea) => {
+    setShowAddIdeaModal(null);
+    setShowAddTaskModal({
+      title: idea.title,
+      description: idea.description || '',
+      linkedTo: { section: 'idea', itemId: idea.id },
+      _prefill: true,
+    });
+    // Mark idea as planned
+    updateIdea(idea.id, { status: 'planned' });
+  };
+
+
+  const getEventLabel = (eventId) => {
+    if (!eventId) return null;
+    const evt = partyEvents.find(e => String(e.id) === String(eventId));
+    return evt ? evt.name : null;
+  };
+
+  const navigateToEvent = (eventId) => {
+    setActiveSection('events');
+  };
+
+
+  // ── Search functions ──
+  const getSearchResults = useCallback(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return { tasks: [], lists: [], ideas: [], social: [], habits: [], travel: [], events: [], fitness: [], memories: [] };
+    const r = { tasks: [], lists: [], ideas: [], social: [], habits: [], travel: [], events: [], fitness: [], memories: [] };
+    if (searchFilters.tasks) {
+      r.tasks = sharedTasks.filter(t =>
+        t.title?.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q) || t.tags?.some(tg => tg.toLowerCase().includes(q))
+      ).slice(0, 8);
+    }
+    if (searchFilters.lists) {
+      r.lists = sharedLists.filter(l =>
+        l.name?.toLowerCase().includes(q) || l.items?.some(i => i.text?.toLowerCase().includes(q))
+      ).slice(0, 8);
+    }
+    if (searchFilters.ideas) {
+      r.ideas = sharedIdeas.filter(i =>
+        i.title?.toLowerCase().includes(q) || i.description?.toLowerCase().includes(q) || i.tags?.some(tg => tg.toLowerCase().includes(q))
+      ).slice(0, 8);
+    }
+    if (searchFilters.social) {
+      r.social = sharedSocial.filter(s =>
+        s.person?.toLowerCase().includes(q) || s.title?.toLowerCase().includes(q) || s.description?.toLowerCase().includes(q)
+      ).slice(0, 8);
+    }
+    if (searchFilters.habits) {
+      r.habits = sharedHabits.filter(h =>
+        h.name?.toLowerCase().includes(q) || h.cue?.toLowerCase().includes(q) || h.routine?.toLowerCase().includes(q) || h.reward?.toLowerCase().includes(q) || h.identity?.toLowerCase().includes(q)
+      ).slice(0, 8);
+    }
+    if (searchFilters.travel) {
+      r.travel = trips.filter(t =>
+        t.destination?.toLowerCase().includes(q) || t.special?.toLowerCase().includes(q)
+      ).slice(0, 8);
+    }
+    if (searchFilters.events) {
+      r.events = partyEvents.filter(e =>
+        e.name?.toLowerCase().includes(q) || e.location?.toLowerCase().includes(q) || e.description?.toLowerCase().includes(q)
+      ).slice(0, 8);
+    }
+    if (searchFilters.fitness) {
+      r.fitness = fitnessEvents.filter(f =>
+        f.name?.toLowerCase().includes(q) || f.type?.toLowerCase().includes(q)
+      ).slice(0, 8);
+    }
+    if (searchFilters.memories) {
+      r.memories = memories.filter(m =>
+        m.title?.toLowerCase().includes(q) || m.description?.toLowerCase().includes(q) || m.location?.toLowerCase().includes(q)
+      ).slice(0, 8);
+    }
+    return r;
+  }, [searchQuery, searchFilters, sharedTasks, sharedLists, sharedIdeas, sharedSocial, sharedHabits, trips, partyEvents, fitnessEvents, memories]);
+
+  const searchResults = searchQuery.trim() ? getSearchResults() : { tasks: [], lists: [], ideas: [], social: [], habits: [], travel: [], events: [], fitness: [], memories: [] };
+  const totalSearchResults = Object.values(searchResults).reduce((sum, arr) => sum + arr.length, 0);
+
+  const handleSearchResultClick = (type, itemId) => {
+    setShowSearch(false);
+    setSearchQuery('');
+    setSearchHighlightId({ type, id: itemId });
+    if (['tasks', 'lists', 'ideas', 'social', 'habits'].includes(type)) {
+      setActiveSection('home');
+      setHubSubView(type);
+    } else {
+      setActiveSection(type === 'travel' ? 'travel' : type === 'events' ? 'events' : type === 'fitness' ? 'fitness' : 'memories');
+    }
+  };
+
+  // Scroll to and highlight the search result after navigation
+  useEffect(() => {
+    if (!searchHighlightId) return;
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-search-id="${searchHighlightId.type}-${searchHighlightId.id}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('search-highlight-pulse');
+        setTimeout(() => {
+          el.classList.remove('search-highlight-pulse');
+          setSearchHighlightId(null);
+        }, 2500);
       } else {
-        // Generate training weeks for other events
-        const event = fitnessEvents.find(e => e.id === eventId);
-        if (event) {
-          const today = new Date().toISOString().split('T')[0];
-          newPlans[eventId] = generateTrainingWeeks(today, event.date, eventId);
-        }
+        setSearchHighlightId(null);
+      }
+    }, 300); // delay to let section render
+    return () => clearTimeout(timer);
+  }, [searchHighlightId, activeSection, hubSubView]);
+
+  // Get linked item label for display
+  const getLinkedLabel = (linkedTo) => {
+    if (!linkedTo) return null;
+    switch (linkedTo.section) {
+      case 'travel': {
+        const trip = trips.find(t => t.id === linkedTo.itemId);
+        return trip ? `✈️ ${trip.destination}` : null;
+      }
+      case 'fitness': {
+        const event = fitnessEvents.find(e => e.id === linkedTo.itemId);
+        return event ? `🏃 ${event.name}` : null;
+      }
+      case 'events': {
+        const event = partyEvents.find(e => e.id === linkedTo.itemId);
+        return event ? `🎉 ${event.name}` : null;
+      }
+      case 'idea': {
+        const idea = sharedIdeas.find(i => i.id === linkedTo.itemId);
+        return idea ? `💡 ${idea.title}` : null;
+      }
+      default: return null;
+    }
+  };
+
+  // Navigate to a linked section item
+  const navigateToLinked = (linkedTo) => {
+    if (!linkedTo) return;
+    const sectionMap = { travel: 'travel', fitness: 'fitness', events: 'events', idea: 'home' };
+    const section = sectionMap[linkedTo.section];
+    if (section) {
+      setActiveSection(section);
+      if (section === 'travel') {
+        const trip = trips.find(t => t.id === linkedTo.itemId);
+        if (trip) setSelectedTrip(trip);
+      } else if (section === 'fitness') {
+        const event = fitnessEvents.find(e => e.id === linkedTo.itemId);
+        if (event) setSelectedFitnessEvent(event);
+      } else if (section === 'events') {
+        const event = partyEvents.find(e => e.id === linkedTo.itemId);
+        if (event) setSelectedPartyEvent(event);
       }
     }
-
-    if (!newPlans[eventId]) return;
-
-    // Find week by id OR weekNumber (for backwards compatibility)
-    const weekIdNum = weekId.includes('week-') ? parseInt(weekId.split('week-')[1]) : null;
-    newPlans[eventId] = newPlans[eventId].map(week => {
-      const matches = week.id === weekId || (weekIdNum && week.weekNumber === weekIdNum);
-      if (matches) {
-        // Ensure the week has proper id for future lookups
-        return { ...week, ...updates, id: weekId };
-      }
-      return week;
-    });
-
-    setFitnessTrainingPlans(newPlans);
-    await saveFitnessToFirestore(null, newPlans);
   };
 
   // Update a workout (run or cross-training)
@@ -2468,101 +2818,7 @@ export default function TripPlanner() {
     setShowAddModal(null);
   };
 
-  const addNewTrip = (tripData, isWishlist) => {
-    const colorSet = tripColors[Math.floor(Math.random() * tripColors.length)];
-    const suggestedEmoji = getEmojiSuggestion(tripData.destination);
-    const newTrip = {
-      id: Date.now(),
-      destination: tripData.destination,
-      emoji: tripData.emoji || suggestedEmoji || '✈️',
-      dates: isWishlist ? null : { start: tripData.startDate, end: tripData.endDate },
-      ...colorSet,
-      isWishlist,
-      notes: tripData.notes || '',
-      special: tripData.special || ''
-    };
-
-    if (isWishlist) {
-      const newWishlist = [...wishlist, newTrip];
-      setWishlist(newWishlist);
-      saveToFirestore(null, newWishlist, null);
-    } else {
-      const newTrips = [...trips, newTrip];
-      const newTripDetails = {
-        ...tripDetails,
-        [newTrip.id]: { flights: [], hotels: [], events: [], links: [] }
-      };
-      setTrips(newTrips);
-      setTripDetails(newTripDetails);
-      saveToFirestore(newTrips, null, newTripDetails);
-    }
-    setShowNewTripModal(null);
-  };
-
-  const convertToAdventure = (wishlistItem) => {
-    // Remove from wishlist, will need dates added
-    setShowNewTripModal({ type: 'convert', item: wishlistItem });
-  };
-
-  const updateTripDates = async (tripId, newStart, newEnd) => {
-    const newTrips = trips.map(trip =>
-      trip.id === tripId
-        ? { ...trip, dates: { start: newStart, end: newEnd } }
-        : trip
-    );
-    setTrips(newTrips);
-    await saveToFirestore(newTrips, null, null);
-    // Return the updated trip so caller can update selectedTrip
-    return newTrips.find(t => t.id === tripId);
-  };
-
-  const deleteTrip = (tripId) => {
-    // Only owners can delete trips
-    if (!canDeleteTrip(tripId)) {
-      showToast('Only trip owners can delete trips', 'error');
-      return;
-    }
-    const newTrips = trips.filter(trip => trip.id !== tripId);
-    setTrips(newTrips);
-    saveToFirestore(newTrips, null, null);
-    setShowTripMenu(null);
-  };
-
-  const updateTripColor = (tripId, colorSet) => {
-    const newTrips = trips.map(trip =>
-      trip.id === tripId
-        ? { ...trip, color: colorSet.color, accent: colorSet.accent }
-        : trip
-    );
-    setTrips(newTrips);
-    saveToFirestore(newTrips, null, null);
-    setShowColorPicker(null);
-    setShowTripMenu(null);
-  };
-
-  const updateTripEmoji = (tripId, emoji) => {
-    const newTrips = trips.map(trip =>
-      trip.id === tripId
-        ? { ...trip, emoji }
-        : trip
-    );
-    setTrips(newTrips);
-    saveToFirestore(newTrips, null, null);
-    setShowEmojiEditor(null);
-    setShowTripMenu(null);
-  };
-
-  const updateTripCoverImage = (tripId, imageUrl) => {
-    const newTrips = trips.map(trip =>
-      trip.id === tripId
-        ? { ...trip, coverImage: imageUrl }
-        : trip
-    );
-    setTrips(newTrips);
-    saveToFirestore(newTrips, null, null);
-    setShowImageEditor(null);
-    setShowTripMenu(null);
-  };
+  // Travel operations now in useTravel hook
 
   const addLink = (tripId, linkData) => {
     // Check if this is a planning trip - if so, add to trip's planningLinks
@@ -2637,7 +2893,7 @@ export default function TripPlanner() {
 
   return (
     <div
-      className="min-h-screen bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 relative"
+      className="h-[100dvh] md:h-screen flex flex-col bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 relative"
       onClick={closeMenus}
     >
       {/* Global styles for UI enhancements */}
@@ -2645,6 +2901,7 @@ export default function TripPlanner() {
         html, body {
           background-color: #1e293b;
           overscroll-behavior: none;
+          overflow: hidden;
         }
         @supports (-webkit-touch-callout: none) {
           body {
@@ -2891,7 +3148,7 @@ export default function TripPlanner() {
       {/* Anchor removed for cleaner UI */}
 
       {/* Header */}
-      <header className="relative z-10 pt-4 md:pt-8 pb-2 md:pb-4 px-4 md:px-6">
+      <header className="relative z-10 pt-4 md:pt-8 pb-2 md:pb-4 px-4 md:px-6 shrink-0">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between gap-2 md:gap-4 relative">
             {/* Left side: Names + Section Title on mobile */}
@@ -2899,17 +3156,12 @@ export default function TripPlanner() {
               <div className="flex items-center gap-1 md:gap-2 shrink-0">
                 <h1 className="text-base md:text-3xl font-bold tracking-tight whitespace-nowrap">
                   <button
-                    onClick={() => isOwner && setCurrentUser('Mike')}
-                    className={`${currentUser === 'Mike' ? 'text-teal-400' : 'text-white'} ${isOwner ? 'hover:opacity-80 cursor-pointer' : ''} transition`}
+                    onClick={() => isOwner && setActiveSection('apps')}
+                    className="hover:opacity-80 cursor-pointer transition"
                   >
-                    Mike
-                  </button>
-                  <span className="text-white"> & </span>
-                  <button
-                    onClick={() => isOwner && setCurrentUser('Adam')}
-                    className={`${currentUser === 'Adam' ? 'text-purple-400' : 'text-white'} ${isOwner ? 'hover:opacity-80 cursor-pointer' : ''} transition`}
-                  >
-                    Adam
+                    <span className="text-teal-400">Mike</span>
+                    <span className="text-white"> & </span>
+                    <span className="text-purple-400">Adam</span>
                   </button>
                 </h1>
                 {/* Hearts icon - clickable */}
@@ -2920,19 +3172,19 @@ export default function TripPlanner() {
                 >
                   💕
                 </button>
-                {/* Mobile section indicator */}
+                {/* Mobile section indicator - icon only */}
                 <span className="md:hidden text-white/40 text-sm">•</span>
-                <span className="md:hidden text-sm font-medium text-white/80 truncate">
-                  {activeSection === 'home' && '🌈 Home'}
-                  {activeSection === 'travel' && '✈️ Travel'}
-                  {activeSection === 'fitness' && '🏃 Fitness'}
-                  {activeSection === 'events' && '🎉 Events'}
-                  {activeSection === 'memories' && '💝 Memories'}
-                  {activeSection === 'nutrition' && '🥗 Nutrition'}
-                  {activeSection === 'lifePlanning' && '🎯 Planning'}
-                  {activeSection === 'business' && '💼 Business'}
-                  {activeSection === 'calendar' && '📅 Calendar'}
-                  {activeSection === 'apps' && '📱 Mini Apps'}
+                <span className="md:hidden text-lg">
+                  {activeSection === 'home' && '🏠'}
+                  {activeSection === 'travel' && '✈️'}
+                  {activeSection === 'fitness' && '🏃'}
+                  {activeSection === 'events' && '🎉'}
+                  {activeSection === 'memories' && '💝'}
+                  {activeSection === 'nutrition' && '🥗'}
+                  {activeSection === 'lifePlanning' && '🎯'}
+                  {activeSection === 'business' && '💼'}
+                  {activeSection === 'calendar' && '📅'}
+                  {activeSection === 'apps' && '📱'}
                 </span>
               </div>
             </div>
@@ -2942,8 +3194,8 @@ export default function TripPlanner() {
               {activeSection === 'home' && (
                 <div>
                   <h2 className="text-xl font-bold text-white flex items-center justify-center gap-2">
-                    <span>🌈</span>
-                    Welcome to Our World
+                    <span>🏠</span>
+                    Hub
                   </h2>
                   <p className="text-xs text-slate-400">Plan adventures, stay healthy, build our future</p>
                 </div>
@@ -3020,23 +3272,40 @@ export default function TripPlanner() {
                   <Calendar className="w-4 h-4 md:w-5 md:h-5" />
                 </button>
 
-                {/* Mini Apps button - navigates to apps page */}
+                {/* Search button */}
                 <button
-                  onClick={() => setActiveSection('apps')}
+                  onClick={() => setShowSearch(true)}
                   className={`flex items-center justify-center w-8 h-8 md:w-9 md:h-9 rounded-lg md:rounded-xl transition shadow-lg ${
-                    activeSection === 'apps'
-                      ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white ring-2 ring-white/30'
-                      : 'bg-gradient-to-br from-blue-500 to-purple-600 text-white hover:opacity-90'
+                    showSearch
+                      ? 'bg-gradient-to-br from-purple-400 to-pink-500 text-white'
+                      : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
                   }`}
-                  title="Mini Apps"
+                  title="Search"
                 >
-                  <svg className="w-4 h-4 md:w-5 md:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="7" height="7" rx="1.5" />
-                    <rect x="14" y="3" width="7" height="7" rx="1.5" />
-                    <rect x="3" y="14" width="7" height="7" rx="1.5" />
-                    <rect x="14" y="14" width="7" height="7" rx="1.5" />
-                  </svg>
+                  <Search className="w-4 h-4 md:w-5 md:h-5" />
                 </button>
+
+                {/* Notification bell */}
+                {isOwner && (
+                  <button
+                    onClick={notificationsEnabled ? disableNotifications : enableNotifications}
+                    disabled={notificationsLoading}
+                    className={`flex items-center justify-center w-8 h-8 md:w-9 md:h-9 rounded-lg md:rounded-xl transition shadow-lg ${
+                      notificationsEnabled
+                        ? 'bg-gradient-to-br from-green-400 to-emerald-500 text-white'
+                        : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
+                    }`}
+                    title={notificationsEnabled ? 'Notifications on' : 'Enable notifications'}
+                  >
+                    {notificationsLoading ? (
+                      <Loader className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
+                    ) : notificationsEnabled ? (
+                      <Bell className="w-4 h-4 md:w-5 md:h-5" />
+                    ) : (
+                      <BellOff className="w-4 h-4 md:w-5 md:h-5" />
+                    )}
+                  </button>
+                )}
 
                 {/* User info and logout - simplified on mobile */}
                 <div className="flex items-center gap-2 bg-white/10 rounded-full px-2 py-1.5 md:px-4 md:py-2">
@@ -3118,7 +3387,7 @@ export default function TripPlanner() {
             <div className="mt-6 hidden md:flex gap-2 flex-wrap items-center justify-center">
               {/* Main navigation buttons */}
               {[
-                { id: 'home', label: 'Home', emoji: '🏠', gradient: 'from-pink-500 to-purple-500' },
+                { id: 'home', label: 'Hub', emoji: '🏠', gradient: 'from-pink-500 to-purple-500' },
                 { id: 'travel', label: 'Travel', emoji: '✈️', gradient: 'from-teal-400 to-cyan-500' },
                 { id: 'fitness', label: 'Fitness', emoji: '🏃', gradient: 'from-orange-400 to-red-500' },
                 { id: 'events', label: 'Events', emoji: '🎉', gradient: 'from-amber-400 to-orange-500' },
@@ -3129,6 +3398,7 @@ export default function TripPlanner() {
                   onClick={() => {
                     setActiveSection(section.id);
                     if (section.id === 'travel') setTravelViewMode('main');
+                    if (section.id === 'home') setHubSubView('home');
                   }}
                   className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold transition shadow-lg ${
                     activeSection === section.id
@@ -3176,447 +3446,726 @@ export default function TripPlanner() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="relative z-10 px-6 pb-24 md:pb-12">
+      {/* Main Content - scrollable area on mobile */}
+      <main className="relative z-10 px-6 pb-24 md:pb-12 flex-1 overflow-y-auto" id="main-scroll">
         <div className="max-w-6xl mx-auto">
 
-          {/* ========== HOME SECTION ========== */}
+          {/* ========== HUB SECTION (formerly Home) ========== */}
           {activeSection === 'home' && (
+            <SharedHubProvider value={sharedHub}>
             <div className="mt-8">
-              {/* TODAY'S FOCUS CARD */}
-              {(() => {
-                // Calculate upcoming trip
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const upcomingTrips = trips
-                  .filter(t => {
-                    const tripDate = parseLocalDate(t.dates?.start);
-                    return tripDate && tripDate >= today;
-                  })
-                  .sort((a, b) => parseLocalDate(a.dates?.start) - parseLocalDate(b.dates?.start));
-                const nextTrip = upcomingTrips[0];
-                const daysUntilTrip = nextTrip ? Math.ceil((parseLocalDate(nextTrip.dates?.start) - today) / (1000 * 60 * 60 * 24)) : null;
-
-                // Calculate events this week
-                const weekFromNow = new Date(today);
-                weekFromNow.setDate(weekFromNow.getDate() + 7);
-                const thisWeekEvents = partyEvents.filter(e => {
-                  const eventDate = parseLocalDate(e.date);
-                  return eventDate && eventDate >= today && eventDate <= weekFromNow;
-                }).sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
-
-                // Get today's workout from active training plans
-                const todayStr = today.toISOString().split('T')[0];
-                const dayOfWeek = today.getDay(); // 0 = Sunday
-                const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                const todayName = dayNames[dayOfWeek];
-
-                let todaysWorkout = null;
-                let workoutEvent = null;
-
-                // Check each fitness event's training plan
-                for (const event of fitnessEvents) {
-                  const plan = fitnessTrainingPlans[event.id];
-                  if (!plan) continue;
-
-                  // Find current week (week that contains today)
-                  const currentWeek = plan.find(week => {
-                    if (!week.startDate) return false;
-                    const weekStart = parseLocalDate(week.startDate);
-                    const weekEnd = new Date(weekStart);
-                    weekEnd.setDate(weekEnd.getDate() + 6);
-                    return today >= weekStart && today <= weekEnd;
-                  });
-
-                  if (currentWeek) {
-                    // Check runs for today
-                    const todayRun = currentWeek.runs?.find(r => r.day?.toLowerCase() === todayName);
-                    if (todayRun && todayRun.distance) {
-                      todaysWorkout = { type: 'run', ...todayRun, weekNumber: currentWeek.weekNumber };
-                      workoutEvent = event;
-                      break;
-                    }
-                    // Check cross-training for today
-                    const todayCross = currentWeek.crossTraining?.find(c => c.day?.toLowerCase() === todayName);
-                    if (todayCross && todayCross.activity) {
-                      todaysWorkout = { type: 'cross', ...todayCross, weekNumber: currentWeek.weekNumber };
-                      workoutEvent = event;
-                      break;
-                    }
-                  }
-                }
-
-                // Calculate upcoming fitness event
-                const upcomingFitnessEvents = fitnessEvents
-                  .filter(e => {
-                    const eventDate = parseLocalDate(e.date);
-                    return eventDate && eventDate >= today;
-                  })
-                  .sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
-                const nextFitnessEvent = upcomingFitnessEvents[0];
-                const daysUntilFitness = nextFitnessEvent ? Math.ceil((parseLocalDate(nextFitnessEvent.date) - today) / (1000 * 60 * 60 * 24)) : null;
-
-                return (
-                  <div className="mb-8 bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm rounded-3xl border border-white/10 overflow-hidden">
-                    <div className="p-5 border-b border-white/10">
-                      <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                        <span className="text-2xl">🎯</span>
-                        Today's Focus
-                        <span className="text-sm font-normal text-white/50 ml-auto">
-                          {today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                        </span>
-                      </h2>
-                    </div>
-
-                    <div className="p-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {/* Today's Workout */}
-                      {todaysWorkout && workoutEvent ? (
-                        <button
-                          onClick={() => {
-                            setSelectedFitnessEvent(workoutEvent);
-                            setActiveSection('fitness');
-                            setFitnessViewMode('training');
-                          }}
-                          className="bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-2xl p-4 border border-orange-500/30 hover:border-orange-500/50 transition text-left group"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="text-2xl">{todaysWorkout.type === 'run' ? '🏃' : '💪'}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              (todaysWorkout.mike || todaysWorkout.adam)
-                                ? 'bg-green-500/20 text-green-400'
-                                : 'bg-orange-500/20 text-orange-400'
-                            }`}>
-                              {(todaysWorkout.mike || todaysWorkout.adam) ? 'Done!' : 'Today'}
-                            </span>
-                          </div>
-                          <div className="font-semibold text-white">
-                            {todaysWorkout.type === 'run'
-                              ? `${todaysWorkout.distance} mi ${todaysWorkout.description || 'Run'}`
-                              : todaysWorkout.activity
-                            }
-                          </div>
-                          <div className="text-sm text-white/60 mt-1">
-                            Week {todaysWorkout.weekNumber} • {workoutEvent.name}
-                          </div>
-                          <div className="text-xs text-orange-400 mt-2 opacity-0 group-hover:opacity-100 transition">
-                            View training plan →
-                          </div>
-                        </button>
-                      ) : (
-                        <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="text-2xl">😴</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">Rest Day</span>
-                          </div>
-                          <div className="font-semibold text-white">No workout scheduled</div>
-                          <div className="text-sm text-white/60 mt-1">Take it easy today!</div>
-                        </div>
-                      )}
-
-                      {/* Next Trip Countdown */}
-                      {nextTrip && (
-                        <button
-                          onClick={() => {
-                            setSelectedTrip(nextTrip);
-                            setActiveSection('travel');
-                          }}
-                          className="bg-gradient-to-br from-teal-500/20 to-cyan-500/20 rounded-2xl p-4 border border-teal-500/30 hover:border-teal-500/50 transition text-left group"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="text-2xl">✈️</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-400">
-                              {daysUntilTrip === 0 ? 'Today!' : daysUntilTrip === 1 ? 'Tomorrow!' : `${daysUntilTrip} days`}
-                            </span>
-                          </div>
-                          <div className="font-semibold text-white truncate">{nextTrip.destination}</div>
-                          <div className="text-sm text-white/60 mt-1">
-                            {nextTrip.dates?.start && new Date(nextTrip.dates.start + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            {nextTrip.dates?.end && ` - ${new Date(nextTrip.dates.end + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
-                          </div>
-                          <div className="text-xs text-teal-400 mt-2 opacity-0 group-hover:opacity-100 transition">
-                            View trip details →
-                          </div>
-                        </button>
-                      )}
-
-                      {/* Events This Week */}
-                      {thisWeekEvents.length > 0 ? (
-                        <button
-                          onClick={() => {
-                            if (thisWeekEvents[0]) {
-                              setSelectedPartyEvent(thisWeekEvents[0]);
-                            }
-                            setActiveSection('events');
-                          }}
-                          className="bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-2xl p-4 border border-amber-500/30 hover:border-amber-500/50 transition text-left group"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="text-2xl">🎉</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
-                              {thisWeekEvents.length} this week
-                            </span>
-                          </div>
-                          <div className="font-semibold text-white truncate">{thisWeekEvents[0].name}</div>
-                          <div className="text-sm text-white/60 mt-1">
-                            {new Date(thisWeekEvents[0].date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                          </div>
-                          {thisWeekEvents.length > 1 && (
-                            <div className="text-xs text-white/40 mt-1">+{thisWeekEvents.length - 1} more</div>
-                          )}
-                          <div className="text-xs text-amber-400 mt-2 opacity-0 group-hover:opacity-100 transition">
-                            View events →
-                          </div>
-                        </button>
-                      ) : nextFitnessEvent && (
-                        <button
-                          onClick={() => {
-                            setSelectedFitnessEvent(nextFitnessEvent);
-                            setActiveSection('fitness');
-                          }}
-                          className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl p-4 border border-purple-500/30 hover:border-purple-500/50 transition text-left group"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="text-2xl">🏆</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
-                              {daysUntilFitness} days
-                            </span>
-                          </div>
-                          <div className="font-semibold text-white truncate">{nextFitnessEvent.name}</div>
-                          <div className="text-sm text-white/60 mt-1">
-                            {new Date(nextFitnessEvent.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </div>
-                          <div className="text-xs text-purple-400 mt-2 opacity-0 group-hover:opacity-100 transition">
-                            View race details →
-                          </div>
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Quick Actions Row */}
-                    <div className="px-5 pb-5 flex gap-2 flex-wrap">
-                      <button
-                        onClick={() => setShowAddMemoryModal('milestone')}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/70 hover:text-white transition"
-                      >
-                        <Camera className="w-4 h-4" />
-                        <span className="hidden sm:inline">Quick Memory</span>
-                        <span className="sm:hidden">Memory</span>
-                      </button>
-                      <button
-                        onClick={() => setActiveSection('calendar')}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/70 hover:text-white transition"
-                      >
-                        <Calendar className="w-4 h-4" />
-                        <span className="hidden sm:inline">View Calendar</span>
-                        <span className="sm:hidden">Calendar</span>
-                      </button>
-                      {nextTrip && (
-                        <button
-                          onClick={() => {
-                            setSelectedTrip(nextTrip);
-                            setActiveSection('travel');
-                          }}
-                          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-white/70 hover:text-white transition"
-                        >
-                          <CheckSquare className="w-4 h-4" />
-                          <span className="hidden sm:inline">Packing List</span>
-                          <span className="sm:hidden">Packing</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Photo Carousel Hero with Dramatic Floating Animations */}
-              <div className="mb-12 relative">
-                {/* Enhanced CSS animations */}
-                <style>{`
-                  @keyframes floatDramatic {
-                    0% { transform: translateY(0px) translateX(0px) rotate(0deg) scale(1); }
-                    25% { transform: translateY(-30px) translateX(20px) rotate(10deg) scale(1.1); }
-                    50% { transform: translateY(-15px) translateX(-15px) rotate(-5deg) scale(0.95); }
-                    75% { transform: translateY(-40px) translateX(10px) rotate(8deg) scale(1.05); }
-                    100% { transform: translateY(0px) translateX(0px) rotate(0deg) scale(1); }
-                  }
-                  @keyframes driftAcross {
-                    0% { transform: translateX(-100px) translateY(0px) rotate(-10deg); opacity: 0; }
-                    10% { opacity: 1; }
-                    90% { opacity: 1; }
-                    100% { transform: translateX(100vw) translateY(-50px) rotate(20deg); opacity: 0; }
-                  }
-                  @keyframes heartbeat {
-                    0%, 100% { transform: scale(1); }
-                    15% { transform: scale(1.3); }
-                    30% { transform: scale(1); }
-                    45% { transform: scale(1.2); }
-                    60% { transform: scale(1); }
-                  }
-                  @keyframes rainbowPulse {
-                    0%, 100% { transform: scale(1) rotate(0deg); filter: hue-rotate(0deg); }
-                    50% { transform: scale(1.2) rotate(10deg); filter: hue-rotate(30deg); }
-                  }
-                  @keyframes sparkleFloat {
-                    0%, 100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 0.7; }
-                    25% { transform: translateY(-20px) rotate(90deg) scale(1.3); opacity: 1; }
-                    50% { transform: translateY(-10px) rotate(180deg) scale(0.8); opacity: 0.5; }
-                    75% { transform: translateY(-35px) rotate(270deg) scale(1.2); opacity: 1; }
-                  }
-                  @keyframes orbitSlow {
-                    0% { transform: rotate(0deg) translateX(30px) rotate(0deg); }
-                    100% { transform: rotate(360deg) translateX(30px) rotate(-360deg); }
-                  }
-                  @keyframes bounceHigh {
-                    0%, 100% { transform: translateY(0) scale(1); }
-                    50% { transform: translateY(-50px) scale(1.15); }
-                  }
-                  @keyframes zipOff {
-                    0% { transform: scale(1) rotate(0deg); opacity: 1; }
-                    30% { transform: scale(1.3) rotate(15deg); opacity: 1; }
-                    100% { transform: scale(0) rotate(720deg) translateY(-200px); opacity: 0; }
-                  }
-                  @keyframes fadeCarousel {
-                    0% { opacity: 0; transform: scale(1.05); }
-                    10% { opacity: 1; transform: scale(1); }
-                    90% { opacity: 1; transform: scale(1); }
-                    100% { opacity: 0; transform: scale(0.95); }
-                  }
-                `}</style>
-
+              {/* Hub Sub-Navigation */}
+              <div className="flex gap-1.5 md:gap-2 mb-6 items-center justify-between md:justify-start ml-14 md:ml-0">
+                {[
+                  { id: 'home', emoji: '📊' },
+                  { id: 'tasks', emoji: '✅' },
+                  { id: 'lists', emoji: '📋' },
+                  { id: 'social', emoji: '👥' },
+                  { id: 'habits', emoji: '🔄' },
+                  { id: 'ideas', emoji: '💡' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setHubSubView(tab.id)}
+                    className={`flex-1 md:flex-none px-3 md:px-4 py-2 rounded-xl font-medium transition text-base md:text-lg text-center ${
+                      hubSubView === tab.id
+                        ? 'bg-rose-500 text-white shadow-lg'
+                        : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                    }`}
+                  >
+                    {tab.emoji}
+                  </button>
+                ))}
               </div>
 
-              {/* Photo Carousel - Full Width */}
-              <div
-                onClick={() => setActiveSection('memories')}
-                className="relative rounded-3xl overflow-hidden shadow-2xl h-72 md:h-80 cursor-pointer group mb-8"
-              >
-                {(() => {
-                  const allPhotos = getAllMemoryPhotos();
-                  if (allPhotos.length === 0) {
+              {/* ===== HUB DASHBOARD VIEW ===== */}
+              {hubSubView === 'home' && (
+                <>
+                  {/* TODAY'S TASKS WIDGET */}
+                  {(() => {
+                    const todayTasks = sharedTasks.filter(t => t.status !== 'done' && isTaskDueToday(t));
+                    const doneTodayTasks = sharedTasks.filter(t => t.status === 'done' && t.completedAt && new Date(t.completedAt).toDateString() === new Date().toDateString());
+                    const isCollapsed = collapsedSections.tasks;
                     return (
-                      <>
-                        <img
-                          src="/gallery/pier-painting.jpg"
-                          alt="Provincetown Pier Painting"
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
-                          <p className="text-white text-lg font-medium text-center">Add photos to memories! 📷</p>
-                        </div>
-                      </>
-                    );
-                  }
-                  const currentPhoto = allPhotos[heroPhotoIndex % allPhotos.length];
-                  const currentMemory = memories.find(m => getMemoryImages(m).includes(currentPhoto));
-                  const photoIndex = currentMemory ? getMemoryImages(currentMemory).indexOf(currentPhoto) : 0;
-                  const imgSettings = currentMemory?.imageSettings?.[photoIndex] || { x: 50, y: 50, zoom: 100 };
-                  return (
-                    <>
-                      {allPhotos.map((photo, idx) => {
-                        const mem = memories.find(m => getMemoryImages(m).includes(photo));
-                        const pIdx = mem ? getMemoryImages(mem).indexOf(photo) : 0;
-                        const settings = mem?.imageSettings?.[pIdx] || { x: 50, y: 50, zoom: 100 };
-                        return (
-                          <img
-                            key={idx}
-                            src={photo}
-                            alt={mem?.title || 'Memory'}
-                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
-                              idx === heroPhotoIndex % allPhotos.length ? 'opacity-100' : 'opacity-0'
-                            }`}
-                            style={{
-                              objectPosition: `${settings.x}% ${settings.y}%`,
-                              transform: `scale(${settings.zoom / 100})`,
-                              transformOrigin: `${settings.x}% ${settings.y}%`
-                            }}
-                          />
-                        );
-                      })}
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 z-10">
-                        <p className="text-white text-lg font-medium text-center">
-                          {currentMemory?.title || 'Our Memories'} 💕
-                        </p>
-                      </div>
-                      {/* Photo indicators */}
-                      <div className="absolute bottom-12 left-0 right-0 flex justify-center gap-2 z-10">
-                        {allPhotos.slice(0, 10).map((_, idx) => (
-                          <button
-                            key={idx}
-                            onClick={(e) => { e.stopPropagation(); setHeroPhotoIndex(idx); }}
-                            className={`w-2 h-2 rounded-full transition-all ${
-                              idx === heroPhotoIndex % allPhotos.length
-                                ? 'bg-white w-4'
-                                : 'bg-white/50 hover:bg-white/70'
-                            }`}
-                          />
-                        ))}
-                        {allPhotos.length > 10 && (
-                          <span className="text-white/50 text-xs ml-1">+{allPhotos.length - 10}</span>
+                      <div className="mb-6 rounded-3xl border border-teal-500/20 bg-gradient-to-br from-teal-950/30 via-slate-900/50 to-slate-950/40 backdrop-blur-xl shadow-[0_0_30px_rgba(20,184,166,0.06)]">
+                        <button
+                          onClick={() => toggleDashSection('tasks')}
+                          className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition"
+                        >
+                          <h3 className="text-base font-bold text-white flex items-center gap-2">
+                            <span>✅</span> Today's Tasks
+                            {todayTasks.length > 0 && <span className="text-xs px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-400">{todayTasks.length}</span>}
+                          </h3>
+                          <div className="text-white/40">
+                            {isCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+                          </div>
+                        </button>
+                        {!isCollapsed && (
+                          <>
+                            <div className="px-4 pb-1">
+                              <button onClick={() => setHubSubView('tasks')} className="text-xs text-teal-400 hover:text-teal-300 transition">See All →</button>
+                            </div>
+                            <div className="p-4 pt-2 space-y-2">
+                              {todayTasks.length === 0 && doneTodayTasks.length === 0 ? (
+                                <div className="text-center py-6">
+                                  <span className="text-3xl mb-2 block">🎉</span>
+                                  <p className="text-white/40 text-sm">No tasks for today!</p>
+                                  <button onClick={() => setShowAddTaskModal('create')} className="mt-3 text-xs text-teal-400 hover:text-teal-300 transition">+ Add a task</button>
+                                </div>
+                              ) : (
+                                <>
+                                  {todayTasks.slice(0, 5).map(task => (
+                                    <TaskCard
+                                      key={task.id}
+                                      task={task}
+                                     
+                                      onNavigateToLinked={navigateToLinked}
+                                      getLinkedLabel={getLinkedLabel}
+                                    />
+                                  ))}
+                                  {doneTodayTasks.slice(0, 2).map(task => (
+                                    <TaskCard key={task.id} task={task} onNavigateToLinked={navigateToLinked} getLinkedLabel={getLinkedLabel} />
+                                  ))}
+                                  {todayTasks.length > 5 && <div className="text-xs text-white/30 text-center pt-1">+{todayTasks.length - 5} more</div>}
+                                </>
+                              )}
+                            </div>
+                          </>
                         )}
                       </div>
-                      {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition flex items-center justify-center">
-                        <span className="text-white font-medium opacity-0 group-hover:opacity-100 transition">View Memories →</span>
+                    );
+                  })()}
+
+                  {/* ACTIVE LISTS WIDGET */}
+                  {(() => {
+                    const activeLists = sharedLists.filter(l => l.status === 'active').slice(0, 3);
+                    const isCollapsed = collapsedSections.lists;
+                    return (
+                      <div className="mb-6 rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/30 via-slate-900/50 to-slate-950/40 backdrop-blur-xl shadow-[0_0_30px_rgba(16,185,129,0.06)]">
+                        <button
+                          onClick={() => toggleDashSection('lists')}
+                          className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition"
+                        >
+                          <h3 className="text-base font-bold text-white flex items-center gap-2">
+                            <span>🛒</span> Lists
+                            {activeLists.length > 0 && <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">{activeLists.length}</span>}
+                          </h3>
+                          <div className="text-white/40">
+                            {isCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+                          </div>
+                        </button>
+                        {!isCollapsed && (
+                          <>
+                            <div className="px-4 pb-1">
+                              <button onClick={() => setHubSubView('lists')} className="text-xs text-teal-400 hover:text-teal-300 transition">See All →</button>
+                            </div>
+                            <div className="p-4 pt-2 space-y-3">
+                              {activeLists.length === 0 ? (
+                                <div className="text-center py-6">
+                                  <span className="text-3xl mb-2 block">📝</span>
+                                  <p className="text-white/40 text-sm">No active lists</p>
+                                  <button onClick={() => setShowSharedListModal('create')} className="mt-3 text-xs text-teal-400 hover:text-teal-300 transition">+ Create a list</button>
+                                </div>
+                              ) : (
+                                activeLists.map(list => (
+                                  <ListCard
+                                    key={list.id}
+                                    list={list}
+                                    currentUser={currentUser}
+                                   
+                                    onNavigateToLinked={navigateToLinked}
+                                    getLinkedLabel={getLinkedLabel}
+                                  />
+                                ))
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
-                    </>
-                  );
-                })()}
-              </div>
+                    );
+                  })()}
 
-              {/* Quick Stats */}
-              <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-8 border border-white/10 mb-12">
-                <h3 className="text-xl font-bold text-white mb-6 text-center">Our Journey So Far</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-                  <div>
-                    <div className="text-4xl font-bold text-teal-400">{trips.length}</div>
-                    <div className="text-slate-400">Trips Planned</div>
-                  </div>
-                  <div>
-                    <div className="text-4xl font-bold text-purple-400">{wishlist.length}</div>
-                    <div className="text-slate-400">Dream Destinations</div>
-                  </div>
-                  <div>
-                    <div className="text-4xl font-bold text-orange-400">{fitnessEvents.length}</div>
-                    <div className="text-slate-400">Fitness Goals</div>
-                  </div>
-                  <div>
-                    <div className="text-4xl font-bold text-pink-400">∞</div>
-                    <div className="text-slate-400">Adventures Ahead</div>
-                  </div>
-                </div>
-              </div>
+                  {/* RECENT IDEAS WIDGET */}
+                  {(() => {
+                    const recentIdeas = sharedIdeas.filter(i => i.status === 'inbox' || i.status === 'saved').slice(0, 4);
+                    const isCollapsed = collapsedSections.ideas;
+                    return recentIdeas.length > 0 && (
+                      <div className="mb-6 rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-950/30 via-slate-900/50 to-slate-950/40 backdrop-blur-xl shadow-[0_0_30px_rgba(245,158,11,0.06)]">
+                        <button
+                          onClick={() => toggleDashSection('ideas')}
+                          className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition"
+                        >
+                          <h3 className="text-base font-bold text-white flex items-center gap-2">
+                            <span>💡</span> Ideas
+                          </h3>
+                          <div className="text-white/40">
+                            {isCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+                          </div>
+                        </button>
+                        {!isCollapsed && (
+                          <>
+                            <div className="px-4 pb-1">
+                              <button onClick={() => setHubSubView('ideas')} className="text-xs text-teal-400 hover:text-teal-300 transition">See All →</button>
+                            </div>
+                            <div className="p-4 pt-2 grid grid-cols-2 gap-3">
+                              {recentIdeas.map(idea => (
+                                <IdeaCard
+                                  key={idea.id}
+                                  idea={idea}
+                                 
+                                  onPromoteToTask={promoteIdeaToTask}
+                                />
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
 
-              {/* Love Note */}
-              <div className="text-center">
-                <div className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-indigo-500/20 rounded-full border border-purple-500/30">
-                  <span className="text-2xl">💕</span>
-                  <span className="text-lg text-transparent bg-clip-text bg-gradient-to-r from-pink-300 via-purple-300 to-indigo-300 font-medium">
-                    Together since March 2nd, 2025
-                  </span>
-                  <span className="text-2xl">💕</span>
+                  {/* UPCOMING SOCIAL WIDGET */}
+                  {(() => {
+                    const upcomingSocial = sharedSocial.filter(s => s.status !== 'done').slice(0, 4);
+                    const isCollapsed = collapsedSections.social;
+                    return upcomingSocial.length > 0 && (
+                      <div className="mb-6 rounded-3xl border border-purple-500/20 bg-gradient-to-br from-purple-950/30 via-slate-900/50 to-slate-950/40 backdrop-blur-xl shadow-[0_0_30px_rgba(168,85,247,0.06)]">
+                        <button
+                          onClick={() => toggleDashSection('social')}
+                          className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition"
+                        >
+                          <h3 className="text-base font-bold text-white flex items-center gap-2">
+                            <span>👥</span> Social
+                          </h3>
+                          <div className="text-white/40">
+                            {isCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+                          </div>
+                        </button>
+                        {!isCollapsed && (
+                          <>
+                            <div className="px-4 pb-1">
+                              <button onClick={() => setHubSubView('social')} className="text-xs text-purple-400 hover:text-purple-300 transition">See All →</button>
+                            </div>
+                            <div className="p-4 pt-2 space-y-2">
+                              {upcomingSocial.map(social => (
+                                <SocialCard
+                                  key={social.id}
+                                  social={social}
+                                 
+                                  onNavigateToEvent={navigateToEvent}
+                                  getEventLabel={getEventLabel}
+                                />
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* HABITS WIDGET */}
+                  {(() => {
+                    const activeHabits = sharedHabits.filter(h => h.status === 'active');
+                    const todayKey = new Date().toISOString().split('T')[0];
+                    const doneToday = activeHabits.filter(h => h.log?.[todayKey] === true).length;
+                    const isCollapsed = collapsedSections.habits;
+                    return activeHabits.length > 0 && (
+                      <div className="mb-6 rounded-3xl border border-rose-500/20 bg-gradient-to-br from-rose-950/30 via-slate-900/50 to-slate-950/40 backdrop-blur-xl shadow-[0_0_30px_rgba(244,63,94,0.06)]">
+                        <button
+                          onClick={() => toggleDashSection('habits')}
+                          className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition"
+                        >
+                          <h3 className="text-base font-bold text-white flex items-center gap-2">
+                            <span>🔄</span> Habits
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">{doneToday}/{activeHabits.length}</span>
+                          </h3>
+                          <div className="text-white/40">
+                            {isCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+                          </div>
+                        </button>
+                        {!isCollapsed && (
+                          <>
+                            <div className="px-4 pb-1">
+                              <button onClick={() => setHubSubView('habits')} className="text-xs text-emerald-400 hover:text-emerald-300 transition">See All →</button>
+                            </div>
+                            <div className="p-4 pt-2 space-y-2">
+                              {activeHabits.slice(0, 5).map(habit => (
+                                <HabitCard
+                                  key={habit.id}
+                                  habit={habit}
+                                  currentUser={currentUser}
+                                 
+                                />
+                              ))}
+                              {activeHabits.length > 5 && <div className="text-xs text-white/30 text-center pt-1">+{activeHabits.length - 5} more</div>}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Comprehensive Stats Dashboard */}
+                  {(() => {
+                    // Compute fitness stats
+                    let totalMilesPlanned = 0;
+                    let totalRunsDone = 0;
+                    let totalCrossDone = 0;
+                    let totalWorkoutsPlanned = 0;
+                    let weeksCompleted = 0;
+                    let currentStreak = 0;
+                    const today = new Date();
+                    today.setHours(0,0,0,0);
+
+                    fitnessEvents.forEach(event => {
+                      const plan = getActiveTrainingPlan(event.id);
+                      if (!plan || !Array.isArray(plan)) return;
+                      plan.forEach(week => {
+                        if (week.totalMiles) totalMilesPlanned += week.totalMiles;
+                        const weekEnd = week.endDate ? parseLocalDate(week.endDate) : null;
+                        let weekAllDone = true;
+                        (week.runs || []).forEach(run => {
+                          totalWorkoutsPlanned++;
+                          if (run.mike || run.adam) totalRunsDone++;
+                          else weekAllDone = false;
+                        });
+                        (week.crossTraining || []).forEach(ct => {
+                          totalWorkoutsPlanned++;
+                          if (ct.mike || ct.adam) totalCrossDone++;
+                          else weekAllDone = false;
+                        });
+                        if (weekEnd && weekEnd <= today && weekAllDone && (week.runs?.length > 0 || week.crossTraining?.length > 0)) {
+                          weeksCompleted++;
+                        }
+                      });
+                    });
+
+                    const totalWorkoutsDone = totalRunsDone + totalCrossDone;
+                    const completionPct = totalWorkoutsPlanned > 0 ? Math.round((totalWorkoutsDone / totalWorkoutsPlanned) * 100) : 0;
+                    const tasksDone = sharedTasks.filter(t => t.status === 'done').length;
+                    const tasksPending = sharedTasks.filter(t => t.status !== 'done').length;
+                    const socialDone = sharedSocial.filter(s => s.status === 'done').length;
+                    const upcomingTrips = trips.filter(t => { const d = t.dates?.start ? parseLocalDate(t.dates.start) : null; return d && d >= today; }).length;
+                    const memoriesCount = memories.length;
+                    const eventsCount = partyEvents.length;
+
+                    // Animated radial progress
+                    const RadialProgress = ({ pct, size, color, label, value }) => {
+                      const r = (size - 8) / 2;
+                      const circ = 2 * Math.PI * r;
+                      const offset = circ - (pct / 100) * circ;
+                      return (
+                        <div className="flex flex-col items-center gap-1.5">
+                          <svg width={size} height={size} className="transform -rotate-90">
+                            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+                            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round"
+                              strokeDasharray={circ} strokeDashoffset={offset}
+                              style={{ transition: 'stroke-dashoffset 1.5s ease-out' }} />
+                          </svg>
+                          <div className="absolute flex flex-col items-center justify-center" style={{ width: size, height: size }}>
+                            <span className="text-lg font-bold text-white">{value}</span>
+                          </div>
+                        </div>
+                      );
+                    };
+
+                    const isStatsCollapsed = collapsedSections.stats;
+                    return (
+                      <div className="mb-6 bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-sm rounded-3xl border border-white/10 overflow-hidden">
+                        <button
+                          onClick={() => toggleDashSection('stats')}
+                          className="w-full p-5 flex items-center justify-between hover:bg-white/5 transition"
+                        >
+                          <h3 className="text-base font-bold text-white flex items-center gap-2">
+                            <span>📊</span> Stats & Progress
+                          </h3>
+                          <div className="text-white/40">
+                            {isStatsCollapsed ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
+                          </div>
+                        </button>
+
+                        {!isStatsCollapsed && <>
+                        {/* Top row: big radial stats */}
+                        <div className="p-5 grid grid-cols-3 gap-4">
+                          {/* Fitness ring */}
+                          <div className="flex flex-col items-center">
+                            <div className="relative">
+                              <svg width={72} height={72} className="transform -rotate-90">
+                                <circle cx={36} cy={36} r={30} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+                                <circle cx={36} cy={36} r={30} fill="none" stroke="#f97316" strokeWidth="6" strokeLinecap="round"
+                                  strokeDasharray={2 * Math.PI * 30} strokeDashoffset={2 * Math.PI * 30 - (completionPct / 100) * 2 * Math.PI * 30}
+                                  style={{ transition: 'stroke-dashoffset 1.5s ease-out' }} />
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-base font-bold text-white">{completionPct}%</span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-white/40 mt-1.5">Fitness</span>
+                          </div>
+
+                          {/* Tasks ring */}
+                          <div className="flex flex-col items-center">
+                            <div className="relative">
+                              <svg width={72} height={72} className="transform -rotate-90">
+                                <circle cx={36} cy={36} r={30} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+                                <circle cx={36} cy={36} r={30} fill="none" stroke="#2dd4bf" strokeWidth="6" strokeLinecap="round"
+                                  strokeDasharray={2 * Math.PI * 30} strokeDashoffset={2 * Math.PI * 30 - ((tasksDone + tasksPending > 0 ? tasksDone / (tasksDone + tasksPending) : 0)) * 2 * Math.PI * 30}
+                                  style={{ transition: 'stroke-dashoffset 1.5s ease-out' }} />
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-base font-bold text-white">{tasksDone}</span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-white/40 mt-1.5">Tasks Done</span>
+                          </div>
+
+                          {/* Social ring */}
+                          <div className="flex flex-col items-center">
+                            <div className="relative">
+                              <svg width={72} height={72} className="transform -rotate-90">
+                                <circle cx={36} cy={36} r={30} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+                                <circle cx={36} cy={36} r={30} fill="none" stroke="#a78bfa" strokeWidth="6" strokeLinecap="round"
+                                  strokeDasharray={2 * Math.PI * 30} strokeDashoffset={2 * Math.PI * 30 - ((socialDone / Math.max(sharedSocial.length, 1))) * 2 * Math.PI * 30}
+                                  style={{ transition: 'stroke-dashoffset 1.5s ease-out' }} />
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-base font-bold text-white">{socialDone}</span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-white/40 mt-1.5">Social</span>
+                          </div>
+                        </div>
+
+                        {/* Fitness detail strip */}
+                        {totalWorkoutsPlanned > 0 && (
+                          <div className="mx-5 mb-4 p-3 bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-2xl border border-orange-500/20">
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-3">
+                                <span>🏃</span>
+                                <div>
+                                  <span className="font-semibold text-orange-400">{totalRunsDone}</span>
+                                  <span className="text-white/40"> runs</span>
+                                </div>
+                                <div>
+                                  <span className="font-semibold text-amber-400">{totalCrossDone}</span>
+                                  <span className="text-white/40"> cross</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div>
+                                  <span className="font-semibold text-red-400">{weeksCompleted}</span>
+                                  <span className="text-white/40"> wks</span>
+                                </div>
+                                <div>
+                                  <span className="font-semibold text-white">{totalMilesPlanned}</span>
+                                  <span className="text-white/40"> mi plan</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Bottom stat tiles */}
+                        <div className="px-5 pb-5 grid grid-cols-4 gap-2">
+                          <button onClick={() => setActiveSection('travel')}
+                            className="bg-white/5 hover:bg-white/10 rounded-xl p-2.5 text-center transition group">
+                            <div className="text-lg font-bold text-teal-400 group-hover:scale-110 transition-transform">{trips.length}</div>
+                            <div className="text-[9px] text-white/30">Trips</div>
+                          </button>
+                          <button onClick={() => setActiveSection('events')}
+                            className="bg-white/5 hover:bg-white/10 rounded-xl p-2.5 text-center transition group">
+                            <div className="text-lg font-bold text-amber-400 group-hover:scale-110 transition-transform">{eventsCount}</div>
+                            <div className="text-[9px] text-white/30">Events</div>
+                          </button>
+                          <button onClick={() => setActiveSection('memories')}
+                            className="bg-white/5 hover:bg-white/10 rounded-xl p-2.5 text-center transition group">
+                            <div className="text-lg font-bold text-pink-400 group-hover:scale-110 transition-transform">{memoriesCount}</div>
+                            <div className="text-[9px] text-white/30">Memories</div>
+                          </button>
+                          <button onClick={() => setHubSubView('ideas')}
+                            className="bg-white/5 hover:bg-white/10 rounded-xl p-2.5 text-center transition group">
+                            <div className="text-lg font-bold text-yellow-400 group-hover:scale-110 transition-transform">{sharedIdeas.length}</div>
+                            <div className="text-[9px] text-white/30">Ideas</div>
+                          </button>
+                        </div>
+                        </>}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+
+              {/* ===== TASKS FULL VIEW ===== */}
+              {hubSubView === 'tasks' && (
+                <div>
+                  {/* Time horizon filter tabs + sort toggle */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="flex gap-1.5 overflow-x-auto pb-1 flex-1">
+                      {timeHorizons.map(h => (
+                        <button key={h.value} onClick={() => setHubTaskFilter(h.value)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition ${hubTaskFilter === h.value ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+                          {h.emoji} {h.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setHubTaskSort(prev => prev === 'date' ? 'priority' : 'date')}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition shrink-0 ${
+                        hubTaskSort === 'priority' ? 'bg-red-500/20 text-red-300 border border-red-400/30' : 'bg-white/5 text-white/50 hover:bg-white/10'
+                      }`}
+                      title={hubTaskSort === 'priority' ? 'Sorted by priority' : 'Sort by priority'}
+                    >
+                      🔥 {hubTaskSort === 'priority' ? 'Priority' : 'Date'}
+                    </button>
+                  </div>
+                  {/* Task list */}
+                  <div className="space-y-2 mb-4">
+                    {sharedTasks
+                      .filter(t => t.status !== 'done' && taskMatchesHorizon(t, hubTaskFilter))
+                      .sort((a, b) => {
+                        if (hubTaskSort === 'priority') {
+                          const pOrder = { high: 0, medium: 1, low: 2 };
+                          const pa = pOrder[a.priority] ?? 2;
+                          const pb = pOrder[b.priority] ?? 2;
+                          if (pa !== pb) return pa - pb;
+                        }
+                        return (a.dueDate || '9999') > (b.dueDate || '9999') ? 1 : -1;
+                      })
+                      .map(task => (
+                        <div key={task.id} data-search-id={`tasks-${task.id}`}>
+                          <TaskCard task={task} onComplete={completeTask} onDelete={deleteTask} onHighlight={highlightTask} onUpdatePriority={(id, p) => updateTask(id, { priority: p })} onNavigateToLinked={navigateToLinked} getLinkedLabel={getLinkedLabel} />
+                        </div>
+                      ))
+                    }
+                    {sharedTasks.filter(t => t.status !== 'done' && taskMatchesHorizon(t, hubTaskFilter)).length === 0 && (
+                      <div className="text-center py-12">
+                        <span className="text-4xl mb-3 block">{timeHorizons.find(h => h.value === hubTaskFilter)?.emoji || '✅'}</span>
+                        <p className="text-white/40 text-sm">No tasks for {timeHorizons.find(h => h.value === hubTaskFilter)?.label?.toLowerCase()}</p>
+                      </div>
+                    )}
+                  </div>
+                  {/* Completed tasks */}
+                  {sharedTasks.filter(t => t.status === 'done').length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="text-xs uppercase tracking-wider text-white/30 mb-3">Completed</h4>
+                      <div className="space-y-2">
+                        {sharedTasks.filter(t => t.status === 'done').slice(0, 10).map(task => (
+                          <TaskCard key={task.id} task={task} onNavigateToLinked={navigateToLinked} getLinkedLabel={getLinkedLabel} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Add task button */}
+                  <button onClick={() => setShowAddTaskModal('create')}
+                    className="w-full mt-4 py-3 rounded-2xl border-2 border-dashed border-white/10 text-white/40 hover:border-teal-500/30 hover:text-teal-400 transition text-sm">
+                    + Add Task
+                  </button>
                 </div>
-              </div>
+              )}
+
+              {/* ===== LISTS FULL VIEW ===== */}
+              {hubSubView === 'lists' && (
+                <div>
+                  {/* Category filter */}
+                  <div className="flex gap-1.5 mb-4 overflow-x-auto pb-2">
+                    <button onClick={() => setHubListFilter('all')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition ${hubListFilter === 'all' ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+                      All
+                    </button>
+                    {listCategories.map(c => (
+                      <button key={c.value} onClick={() => setHubListFilter(c.value)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition ${hubListFilter === c.value ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+                        {c.emoji} {c.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Lists */}
+                  <div className="space-y-3 mb-4">
+                    {sharedLists
+                      .filter(l => l.status === 'active' && (hubListFilter === 'all' || l.category === hubListFilter))
+                      .map(list => (
+                        <div key={list.id} data-search-id={`lists-${list.id}`}>
+                          <ListCard list={list} currentUser={currentUser} onNavigateToLinked={navigateToLinked} getLinkedLabel={getLinkedLabel} />
+                        </div>
+                      ))
+                    }
+                    {sharedLists.filter(l => l.status === 'active' && (hubListFilter === 'all' || l.category === hubListFilter)).length === 0 && (
+                      <div className="text-center py-12">
+                        <span className="text-4xl mb-3 block">📝</span>
+                        <p className="text-white/40 text-sm">No lists yet</p>
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => setShowSharedListModal('create')}
+                    className="w-full mt-4 py-3 rounded-2xl border-2 border-dashed border-white/10 text-white/40 hover:border-emerald-500/30 hover:text-emerald-400 transition text-sm">
+                    + Create List
+                  </button>
+                </div>
+              )}
+
+              {/* ===== SOCIAL FULL VIEW ===== */}
+              {hubSubView === 'social' && (
+                <div>
+                  {/* Type filter */}
+                  <div className="flex gap-1.5 mb-4 overflow-x-auto pb-2">
+                    {[{ value: 'all', label: 'All', emoji: '👥' }, ...socialTypes].map(st => (
+                      <button key={st.value} onClick={() => setHubSocialFilter(st.value)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition ${hubSocialFilter === st.value ? 'bg-gradient-to-r from-purple-500 to-violet-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+                        {st.emoji} {st.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Planned */}
+                  <div className="space-y-2 mb-4">
+                    {sharedSocial
+                      .filter(s => s.status !== 'done')
+                      .filter(s => hubSocialFilter === 'all' || s.type === hubSocialFilter)
+                      .sort((a, b) => {
+                        if (a.date && b.date) return a.date.localeCompare(b.date);
+                        if (a.date) return -1;
+                        if (b.date) return 1;
+                        return (b.createdAt || '').localeCompare(a.createdAt || '');
+                      })
+                      .map(social => (
+                        <div key={social.id} data-search-id={`social-${social.id}`}>
+                          <SocialCard social={social} onNavigateToEvent={navigateToEvent} getEventLabel={getEventLabel} />
+                        </div>
+                      ))
+                    }
+                  </div>
+                  {/* Done section */}
+                  {sharedSocial.filter(s => s.status === 'done' && (hubSocialFilter === 'all' || s.type === hubSocialFilter)).length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-2">Done</h4>
+                      <div className="space-y-2">
+                        {sharedSocial
+                          .filter(s => s.status === 'done' && (hubSocialFilter === 'all' || s.type === hubSocialFilter))
+                          .slice(0, 10)
+                          .map(social => (
+                            <SocialCard key={social.id} social={social} onComplete={completeSocial} onDelete={deleteSocial} onHighlight={highlightSocial} onNavigateToEvent={navigateToEvent} getEventLabel={getEventLabel} />
+                          ))
+                        }
+                      </div>
+                    </div>
+                  )}
+                  {sharedSocial.filter(s => hubSocialFilter === 'all' || s.type === hubSocialFilter).length === 0 && (
+                    <div className="text-center py-12">
+                      <span className="text-4xl mb-3 block">👥</span>
+                      <p className="text-white/40 text-sm">No social plans yet</p>
+                      <p className="text-white/30 text-xs mt-1">Plan texts, calls, meetups, gatherings...</p>
+                    </div>
+                  )}
+                  <button onClick={() => setShowAddSocialModal('create')}
+                    className="w-full mt-4 py-3 rounded-2xl border-2 border-dashed border-white/10 text-white/40 hover:border-purple-500/30 hover:text-purple-400 transition text-sm">
+                    + Plan Social
+                  </button>
+                </div>
+              )}
+
+              {/* ===== HABITS FULL VIEW ===== */}
+              {hubSubView === 'habits' && (
+                <div>
+                  {/* Identity statements banner */}
+                  {(() => {
+                    const identities = sharedHabits.filter(h => h.identity && h.status === 'active');
+                    return identities.length > 0 && (
+                      <div className="mb-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-2xl p-4">
+                        <div className="text-[10px] text-amber-400 uppercase tracking-wider font-semibold mb-2">We are a couple that...</div>
+                        <div className="space-y-1">
+                          {identities.map(h => (
+                            <p key={h.id} className="text-xs text-amber-200/70 italic">• {h.identity.replace(/^"?(we are a couple that\s*)/i, '')}</p>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Category filter */}
+                  <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
+                    {[{ value: 'all', label: 'All', emoji: '🔄' }, ...habitCategories].map(cat => (
+                      <button key={cat.value} onClick={() => setHubHabitFilter(cat.value)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition ${hubHabitFilter === cat.value ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+                        {cat.emoji} {cat.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Active habits */}
+                  <div className="space-y-3 mb-4">
+                    {sharedHabits
+                      .filter(h => h.status === 'active')
+                      .filter(h => hubHabitFilter === 'all' || h.category === hubHabitFilter)
+                      .map(habit => (
+                        <div key={habit.id} data-search-id={`habits-${habit.id}`}>
+                          <HabitCard
+                            habit={habit}
+                            currentUser={currentUser}
+                           
+                          />
+                        </div>
+                      ))
+                    }
+                    {sharedHabits.filter(h => h.status === 'active' && (hubHabitFilter === 'all' || h.category === hubHabitFilter)).length === 0 && (
+                      <div className="text-center py-12">
+                        <span className="text-4xl mb-3 block">🔄</span>
+                        <p className="text-white/40 text-sm">No habits yet</p>
+                        <p className="text-white/30 text-xs mt-1">Build consistency, not streaks</p>
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => setShowAddHabitModal('create')}
+                    className="w-full mt-4 py-3 rounded-2xl border-2 border-dashed border-white/10 text-white/40 hover:border-emerald-500/30 hover:text-emerald-400 transition text-sm">
+                    + New Habit
+                  </button>
+                </div>
+              )}
+
+              {/* ===== IDEAS FULL VIEW ===== */}
+              {hubSubView === 'ideas' && (
+                <div>
+                  {/* Filters */}
+                  <div className="flex gap-1.5 mb-4 overflow-x-auto pb-2">
+                    {[{ value: 'all', label: 'All' }, ...ideaCategories].map(c => (
+                      <button key={c.value} onClick={() => setHubIdeaFilter(c.value)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition ${hubIdeaFilter === c.value ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}>
+                        {c.emoji || '🔍'} {c.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Ideas grid */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {sharedIdeas
+                      .filter(i => (hubIdeaFilter === 'all' || i.category === hubIdeaFilter))
+                      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+                      .map(idea => (
+                        <div key={idea.id} data-search-id={`ideas-${idea.id}`}>
+                          <IdeaCard idea={idea} onDelete={deleteIdea} onHighlight={highlightIdea} onPromoteToTask={promoteIdeaToTask} />
+                        </div>
+                      ))
+                    }
+                  </div>
+                  {sharedIdeas.filter(i => hubIdeaFilter === 'all' || i.category === hubIdeaFilter).length === 0 && (
+                    <div className="text-center py-12">
+                      <span className="text-4xl mb-3 block">💡</span>
+                      <p className="text-white/40 text-sm">No ideas saved yet</p>
+                      <p className="text-white/30 text-xs mt-1">Paste links from restaurants, travel sites, recipes...</p>
+                    </div>
+                  )}
+                  <button onClick={() => setShowAddIdeaModal('create')}
+                    className="w-full mt-4 py-3 rounded-2xl border-2 border-dashed border-white/10 text-white/40 hover:border-amber-500/30 hover:text-amber-400 transition text-sm">
+                    + Add Idea
+                  </button>
+                </div>
+              )}
             </div>
+            </SharedHubProvider>
           )}
-          {/* ========== END HOME SECTION ========== */}
+          {/* ========== END HUB SECTION ========== */}
 
           {/* ========== TRAVEL SECTION ========== */}
           {activeSection === 'travel' && (
           <div className="mt-8">
-            {/* Action Buttons - Travel */}
-            <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap">
-              {/* Owner-only New Adventure button */}
-              {isOwner && (
-                <button
-                  onClick={() => setShowNewTripModal('adventure')}
-                  className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl font-medium transition bg-teal-500/20 text-teal-300 hover:bg-teal-500/30 border border-teal-500/30 text-sm md:text-base"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">New Adventure</span>
-                  <span className="sm:hidden">New</span>
-                </button>
-              )}
-
+            {/* Action Buttons - Travel (left padding for FAB on mobile) */}
+            <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap pl-16 md:pl-0">
               {/* View Switcher - compact on mobile */}
               <button
                 onClick={() => setTravelViewMode('main')}
@@ -3677,6 +4226,45 @@ export default function TripPlanner() {
               )}
             </div>
 
+          {/* Trip Detail View - Inline (like Events) */}
+          {selectedTrip ? (
+            <TripDetail
+              trip={selectedTrip}
+              editingTrip={editingTrip}
+              setEditingTrip={setEditingTrip}
+              editingTripDates={editingTripDates}
+              setEditingTripDates={setEditingTripDates}
+              setSelectedTrip={setSelectedTrip}
+              tripDetails={tripDetails}
+              setTripDetails={setTripDetails}
+              canEditTrip={canEditTrip}
+              removeItem={removeItem}
+              removeLink={removeLink}
+              addLink={addLink}
+              setShowAddModal={setShowAddModal}
+              setShowLinkModal={setShowLinkModal}
+              setShowGuestModal={setShowGuestModal}
+              showLinkModal={showLinkModal}
+              showGuestModal={showGuestModal}
+              isOwner={isOwner}
+              isGuest={isGuest}
+              guestPermissions={guestPermissions}
+              currentUser={currentUser}
+              updateTripDates={updateTripDates}
+              showToast={showToast}
+              saveToFirestore={saveToFirestore}
+              setTrips={setTrips}
+              guestEmail={guestEmail}
+              setGuestEmail={setGuestEmail}
+              guestPermission={guestPermission}
+              setGuestPermission={setGuestPermission}
+              linkedTasks={sharedTasks.filter(t => t && t.linkedTo && t.linkedTo.section === 'trips' && t.linkedTo.itemId === selectedTrip?.id)}
+              onCompleteTask={completeTask}
+              onEditTask={(t) => setShowAddTaskModal(t)}
+            />
+          ) : (
+            <>
+
           {/* Main Adventures View */}
           {travelViewMode === 'main' && (
           <>
@@ -3713,13 +4301,16 @@ export default function TripPlanner() {
             const weather = getWeather();
 
             return (
-              <div className={`mt-6 bg-gradient-to-r ${nextTrip.color} rounded-2xl p-4 md:p-6 relative overflow-hidden`}>
+              <div
+                onClick={() => setSelectedTrip(nextTrip)}
+                className={`mt-6 bg-gradient-to-r ${nextTrip.color} rounded-2xl p-4 md:p-6 relative overflow-hidden cursor-pointer hover:scale-[1.01] transition-transform`}>
                 <div className="absolute inset-0 bg-black/10" />
                 <div className="relative flex flex-col md:flex-row items-start justify-between gap-4">
                   {/* Left side - Trip info */}
                   <div className="flex items-start gap-4">
                     <button
                       onClick={(e) => {
+                        e.stopPropagation();
                         const rect = e.currentTarget.getBoundingClientRect();
                         startBouncingEmoji(nextTrip.emoji, rect.left, rect.top);
                       }}
@@ -3797,7 +4388,8 @@ export default function TripPlanner() {
                     </span>
                   )}
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       const text = `${nextTrip.emoji} ${daysUntil} days until ${nextTrip.destination}! ✨\n\n#TravelCountdown #${nextTrip.destination.replace(/[^a-zA-Z]/g, '')}`;
                       if (navigator.share) {
                         navigator.share({ title: 'Trip Countdown', text });
@@ -3829,6 +4421,7 @@ export default function TripPlanner() {
               })().map(trip => (
                 <div
                   key={trip.id}
+                  data-search-id={`travel-${trip.id}`}
                   className={`bg-gradient-to-br ${trip.color} rounded-3xl text-white text-left relative overflow-hidden group hover:scale-105 transition-transform duration-300 shadow-xl`}
                 >
                   {/* Cover Image */}
@@ -4770,7 +5363,8 @@ export default function TripPlanner() {
             </div>
           )}
           {/* End Wishlist View */}
-
+            </>
+          )}
           </div>
           )}
           {/* ========== END TRAVEL SECTION ========== */}
@@ -4778,18 +5372,8 @@ export default function TripPlanner() {
           {/* ========== FITNESS SECTION ========== */}
           {activeSection === 'fitness' && (
             <div className="mt-8">
-              {/* Fitness View Mode Toggle */}
-              <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap">
-                {/* New Event Button - First */}
-                <button
-                  onClick={() => setShowAddFitnessEventModal(true)}
-                  className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl font-medium transition bg-orange-500/20 text-orange-300 hover:bg-orange-500/30 border border-orange-500/30 text-sm md:text-base"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">New Event</span>
-                  <span className="sm:hidden">New</span>
-                </button>
-
+              {/* Fitness View Mode Toggle (left padding for FAB on mobile) */}
+              <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap pl-16 md:pl-0">
                 {/* View Switcher - compact on mobile */}
                 {[
                   { id: 'events', label: 'Events', emoji: '🎯' },
@@ -4833,6 +5417,7 @@ export default function TripPlanner() {
                     return (
                       <div
                         key={event.id}
+                        data-search-id={`fitness-${event.id}`}
                         className={`bg-gradient-to-br ${event.color} rounded-3xl p-6 shadow-xl relative overflow-hidden group cursor-pointer hover:scale-[1.02] transition-transform`}
                         onClick={() => {
                           setSelectedFitnessEvent(event);
@@ -6369,6 +6954,28 @@ export default function TripPlanner() {
                     )}
                   </div>
 
+                  {/* Linked Tasks Section */}
+                  {sharedTasks && Array.isArray(sharedTasks) && sharedTasks.filter(t => t && t.linkedTo && t.linkedTo.section === 'partyEvents' && t.linkedTo.itemId === selectedPartyEvent?.id).length > 0 && (
+                    <div className="bg-white/10 rounded-2xl p-4 border border-white/20 mb-6">
+                      <div className="flex items-center gap-2 text-teal-400 mb-4">
+                        <CheckSquare className="w-5 h-5" />
+                        <h3 className="font-semibold">Linked Tasks</h3>
+                      </div>
+                      <div className="space-y-3">
+                        {sharedTasks
+                          .filter(t => t && t.linkedTo && t.linkedTo.section === 'partyEvents' && t.linkedTo.itemId === selectedPartyEvent?.id)
+                          .map(task => (
+                            <TaskCard
+                              key={task.id}
+                              task={task}
+                              onNavigateToLinked={() => {}}
+                              getLinkedLabel={() => null}
+                            />
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Guest List with RSVP */}
                   <div className="bg-white/10 rounded-2xl p-4 border border-white/20 mb-6">
                     <div className="flex items-center justify-between mb-4">
@@ -6778,20 +7385,8 @@ export default function TripPlanner() {
               ) : (
                 <>
                   {/* Events List View */}
-                  {/* View Mode Toggle */}
-                  <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap">
-                    {/* New Event Button - First */}
-                    {isOwner && (
-                      <button
-                        onClick={() => setShowAddEventModal(true)}
-                        className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl font-medium transition bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 text-sm md:text-base"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span className="hidden sm:inline">New Event</span>
-                        <span className="sm:hidden">New</span>
-                      </button>
-                    )}
-
+                  {/* View Mode Toggle (left padding for FAB on mobile) */}
+                  <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap pl-16 md:pl-0">
                     {/* View Switcher - compact on mobile */}
                     {['upcoming', 'past', 'all'].map(mode => (
                       <button
@@ -6836,6 +7431,7 @@ export default function TripPlanner() {
                         return (
                           <div
                             key={event.id}
+                            data-search-id={`events-${event.id}`}
                             onClick={() => setSelectedPartyEvent(event)}
                             onDragOver={(e) => { e.preventDefault(); setDragOverEventId(event.id); }}
                             onDragLeave={() => setDragOverEventId(null)}
@@ -7033,18 +7629,8 @@ export default function TripPlanner() {
           {/* ========== MEMORIES SECTION ========== */}
           {activeSection === 'memories' && (
             <div className="mt-8">
-              {/* Controls Row - Responsive mobile buttons */}
-              <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap">
-                {/* New Memory Button - First */}
-                <button
-                  onClick={() => setShowAddMemoryModal('milestone')}
-                  className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 rounded-xl font-medium transition bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 text-sm md:text-base"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">New Memory</span>
-                  <span className="sm:hidden">New</span>
-                </button>
-
+              {/* Controls Row - Responsive mobile buttons (left padding for FAB on mobile) */}
+              <div className="flex gap-1.5 md:gap-2 mb-6 items-center flex-wrap pl-16 md:pl-0">
                 {/* View Switcher - compact on mobile */}
                 {[
                   { id: 'timeline', label: 'Timeline', emoji: '📅' },
@@ -7249,6 +7835,7 @@ export default function TripPlanner() {
                       <div key={event.id} className={`flex items-center gap-8 ${event.side === 'right' ? 'flex-row-reverse' : ''} ${idx > 0 ? '-mt-24' : ''}`}>
                         <div className={`w-5/12 ${event.side === 'right' ? 'text-left' : 'text-right'}`}>
                           <div
+                            data-search-id={event.isMemory ? `memories-${event.memory?.id}` : undefined}
                             onClick={() => event.isMemory && setEditingMemory(event.memory)}
                             onDragOver={(e) => { if (event.isMemory) { e.preventDefault(); setDragOverMemoryId(event.memory?.id); }}}
                             onDragLeave={() => setDragOverMemoryId(null)}
@@ -7528,6 +8115,7 @@ export default function TripPlanner() {
                         {cat.events.map((event) => (
                           <div
                             key={event.id}
+                            data-search-id={event.isMemory ? `memories-${event.id}` : undefined}
                             onClick={() => {
                               if (event.isMemory) setEditingMemory(event);
                               else if (event.isPartyEvent) {
@@ -7786,38 +8374,6 @@ export default function TripPlanner() {
         </div>
       </main>
 
-      {/* Trip Detail Modal */}
-      {selectedTrip && (
-        <TripDetail
-          trip={selectedTrip}
-          editingTripDates={editingTripDates}
-          setEditingTripDates={setEditingTripDates}
-          setSelectedTrip={setSelectedTrip}
-          tripDetails={tripDetails}
-          setTripDetails={setTripDetails}
-          canEditTrip={canEditTrip}
-          removeItem={removeItem}
-          removeLink={removeLink}
-          addLink={addLink}
-          setShowAddModal={setShowAddModal}
-          setShowLinkModal={setShowLinkModal}
-          setShowGuestModal={setShowGuestModal}
-          showLinkModal={showLinkModal}
-          showGuestModal={showGuestModal}
-          isOwner={isOwner}
-          isGuest={isGuest}
-          guestPermissions={guestPermissions}
-          currentUser={currentUser}
-          updateTripDates={updateTripDates}
-          showToast={showToast}
-          saveToFirestore={saveToFirestore}
-          setTrips={setTrips}
-          guestEmail={guestEmail}
-          setGuestEmail={setGuestEmail}
-          guestPermission={guestPermission}
-          setGuestPermission={setGuestPermission}
-        />
-      )}
 
       {/* New Trip Modal */}
       {showNewTripModal && (
@@ -7886,6 +8442,101 @@ export default function TripPlanner() {
           currentCompanion={currentCompanion}
           setCompanions={setCompanions}
           setCurrentCompanion={setCurrentCompanion}
+        />
+      )}
+
+      {/* ========== SHARED HUB MODALS ========== */}
+      {showAddTaskModal && (
+        <AddTaskModal
+          onClose={() => setShowAddTaskModal(null)}
+          onSave={(task) => {
+            if (showAddTaskModal && showAddTaskModal.id) {
+              updateTask(showAddTaskModal.id, task);
+            } else {
+              addTask(task);
+            }
+            setShowAddTaskModal(null);
+          }}
+          editTask={typeof showAddTaskModal === 'object' && showAddTaskModal?.id ? showAddTaskModal : (typeof showAddTaskModal === 'object' && showAddTaskModal?._prefill ? showAddTaskModal : null)}
+          currentUser={currentUser}
+          trips={trips}
+          fitnessEvents={fitnessEvents}
+          partyEvents={partyEvents}
+        />
+      )}
+
+      {showSharedListModal && (
+        <SharedListModal
+          onClose={() => setShowSharedListModal(null)}
+          onSave={(list) => {
+            if (typeof showSharedListModal === 'object' && showSharedListModal?.id) {
+              updateList(showSharedListModal.id, list);
+            } else {
+              addList(list);
+            }
+            setShowSharedListModal(null);
+          }}
+          editList={typeof showSharedListModal === 'object' && showSharedListModal?.id ? showSharedListModal : null}
+          currentUser={currentUser}
+          trips={trips}
+          fitnessEvents={fitnessEvents}
+          partyEvents={partyEvents}
+          onUpdateItems={(listId, items) => {
+            const newLists = sharedLists.map(l => l.id === listId ? { ...l, items } : l);
+            setSharedLists(newLists);
+            saveSharedHub(newLists, null, null);
+          }}
+        />
+      )}
+
+      {showAddIdeaModal && (
+        <AddIdeaModal
+          onClose={() => setShowAddIdeaModal(null)}
+          onSave={(idea) => {
+            if (typeof showAddIdeaModal === 'object' && showAddIdeaModal?.id) {
+              updateIdea(showAddIdeaModal.id, idea);
+            } else {
+              addIdea(idea);
+            }
+            setShowAddIdeaModal(null);
+          }}
+          editIdea={typeof showAddIdeaModal === 'object' && showAddIdeaModal?.id ? showAddIdeaModal : null}
+          currentUser={currentUser}
+          onPromoteToTask={promoteIdeaToTask}
+        />
+      )}
+
+      {showAddSocialModal && (
+        <AddSocialModal
+          onClose={() => setShowAddSocialModal(null)}
+          onSave={(social) => {
+            if (typeof showAddSocialModal === 'object' && showAddSocialModal?.id) {
+              updateSocial(showAddSocialModal.id, social);
+            } else {
+              addSocial(social);
+            }
+            setShowAddSocialModal(null);
+          }}
+          editSocial={typeof showAddSocialModal === 'object' && showAddSocialModal?.id ? showAddSocialModal : null}
+          currentUser={currentUser}
+          partyEvents={partyEvents}
+          onLinkToEvent={navigateToEvent}
+        />
+      )}
+
+      {showAddHabitModal && (
+        <AddHabitModal
+          onClose={() => setShowAddHabitModal(null)}
+          onSave={(habit) => {
+            if (typeof showAddHabitModal === 'object' && showAddHabitModal?.id) {
+              updateHabit(showAddHabitModal.id, habit);
+            } else {
+              addHabit(habit);
+            }
+            setShowAddHabitModal(null);
+          }}
+          editHabit={typeof showAddHabitModal === 'object' && showAddHabitModal?.id ? showAddHabitModal : null}
+          currentUser={currentUser}
         />
       )}
 
@@ -8587,6 +9238,253 @@ export default function TripPlanner() {
               >
                 Save Changes
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Search Modal */}
+      {showSearch && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-start justify-center pt-[10vh] p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowSearch(false); setSearchQuery(''); } }}
+        >
+          <div className="bg-slate-800 rounded-2xl w-full max-w-lg max-h-[70vh] overflow-hidden flex flex-col shadow-2xl border border-white/10">
+            {/* Search input */}
+            <div className="border-b border-white/10 p-3 flex items-center gap-3">
+              <Search className="w-5 h-5 text-white/40 shrink-0" />
+              <input
+                autoFocus
+                type="text"
+                placeholder="Search tasks, lists, ideas, social, habits..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') { setShowSearch(false); setSearchQuery(''); } }}
+                className="flex-1 bg-transparent text-white placeholder-white/40 outline-none text-sm"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="text-white/40 hover:text-white transition p-1">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Filter chips */}
+            <div className="flex gap-2 flex-wrap px-3 py-2.5 border-b border-white/10">
+              {[
+                { key: 'tasks', label: 'Tasks', emoji: '✅' },
+                { key: 'lists', label: 'Lists', emoji: '📝' },
+                { key: 'ideas', label: 'Ideas', emoji: '💡' },
+                { key: 'social', label: 'Social', emoji: '👥' },
+                { key: 'habits', label: 'Habits', emoji: '🔄' },
+                { key: 'travel', label: 'Travel', emoji: '✈️' },
+                { key: 'events', label: 'Events', emoji: '🎉' },
+                { key: 'fitness', label: 'Fitness', emoji: '🏃' },
+                { key: 'memories', label: 'Memories', emoji: '💝' },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setSearchFilters(prev => ({ ...prev, [f.key]: !prev[f.key] }))}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition ${
+                    searchFilters[f.key]
+                      ? 'bg-purple-500/25 text-purple-300 border border-purple-400/40'
+                      : 'bg-white/5 text-white/40 border border-white/10'
+                  }`}
+                >
+                  {f.emoji} {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto">
+              {!searchQuery.trim() ? (
+                <div className="p-8 text-center text-white/40 text-sm">Type to search across all your data</div>
+              ) : totalSearchResults === 0 ? (
+                <div className="p-8 text-center text-white/40 text-sm">No results for "{searchQuery}"</div>
+              ) : (
+                <div className="p-3 space-y-4">
+                  {/* Tasks */}
+                  {searchResults.tasks.length > 0 && (
+                    <div>
+                      <h4 className="text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2 px-1">Tasks ({searchResults.tasks.length})</h4>
+                      <div className="space-y-1">
+                        {searchResults.tasks.map(t => (
+                          <button key={t.id} onClick={() => handleSearchResultClick('tasks', t.id)}
+                            className="w-full text-left p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition flex items-center gap-3">
+                            <span className="text-base">✅</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white truncate">{t.title}</p>
+                              {t.description && <p className="text-xs text-white/40 truncate mt-0.5">{t.description}</p>}
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lists */}
+                  {searchResults.lists.length > 0 && (
+                    <div>
+                      <h4 className="text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2 px-1">Lists ({searchResults.lists.length})</h4>
+                      <div className="space-y-1">
+                        {searchResults.lists.map(l => (
+                          <button key={l.id} onClick={() => handleSearchResultClick('lists', l.id)}
+                            className="w-full text-left p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition flex items-center gap-3">
+                            <span className="text-base">{l.emoji || '📝'}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white truncate">{l.name}</p>
+                              <p className="text-xs text-white/40 mt-0.5">{l.items?.length || 0} items{l.items?.some(i => i.text?.toLowerCase().includes(searchQuery.toLowerCase())) ? ' · match in items' : ''}</p>
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ideas */}
+                  {searchResults.ideas.length > 0 && (
+                    <div>
+                      <h4 className="text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2 px-1">Ideas ({searchResults.ideas.length})</h4>
+                      <div className="space-y-1">
+                        {searchResults.ideas.map(i => (
+                          <button key={i.id} onClick={() => handleSearchResultClick('ideas', i.id)}
+                            className="w-full text-left p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition flex items-center gap-3">
+                            <span className="text-base">💡</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white truncate">{i.title}</p>
+                              {i.description && <p className="text-xs text-white/40 truncate mt-0.5">{i.description}</p>}
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Social */}
+                  {searchResults.social.length > 0 && (
+                    <div>
+                      <h4 className="text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2 px-1">Social ({searchResults.social.length})</h4>
+                      <div className="space-y-1">
+                        {searchResults.social.map(s => (
+                          <button key={s.id} onClick={() => handleSearchResultClick('social', s.id)}
+                            className="w-full text-left p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition flex items-center gap-3">
+                            <span className="text-base">👥</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white truncate">{s.person}{s.title ? ` · ${s.title}` : ''}</p>
+                              {s.description && <p className="text-xs text-white/40 truncate mt-0.5">{s.description}</p>}
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Habits */}
+                  {searchResults.habits.length > 0 && (
+                    <div>
+                      <h4 className="text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2 px-1">Habits ({searchResults.habits.length})</h4>
+                      <div className="space-y-1">
+                        {searchResults.habits.map(h => (
+                          <button key={h.id} onClick={() => handleSearchResultClick('habits', h.id)}
+                            className="w-full text-left p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition flex items-center gap-3">
+                            <span className="text-base">🔄</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white truncate">{h.name}</p>
+                              {h.identity && <p className="text-xs text-white/40 truncate mt-0.5">{h.identity}</p>}
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Travel */}
+                  {searchResults.travel.length > 0 && (
+                    <div>
+                      <h4 className="text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2 px-1">Travel ({searchResults.travel.length})</h4>
+                      <div className="space-y-1">
+                        {searchResults.travel.map(t => (
+                          <button key={t.id} onClick={() => handleSearchResultClick('travel', t.id)}
+                            className="w-full text-left p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition flex items-center gap-3">
+                            <span className="text-base">{t.emoji || '✈️'}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white truncate">{t.destination}</p>
+                              <p className="text-xs text-white/40 mt-0.5">{t.dates?.start ? new Date(t.dates.start + 'T12:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : t.isWishlist ? 'Wishlist' : ''}</p>
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Events */}
+                  {searchResults.events.length > 0 && (
+                    <div>
+                      <h4 className="text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2 px-1">Events ({searchResults.events.length})</h4>
+                      <div className="space-y-1">
+                        {searchResults.events.map(e => (
+                          <button key={e.id} onClick={() => handleSearchResultClick('events', e.id)}
+                            className="w-full text-left p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition flex items-center gap-3">
+                            <span className="text-base">{e.emoji || '🎉'}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white truncate">{e.name}</p>
+                              {e.location && <p className="text-xs text-white/40 truncate mt-0.5">{e.location}</p>}
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fitness */}
+                  {searchResults.fitness.length > 0 && (
+                    <div>
+                      <h4 className="text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2 px-1">Fitness ({searchResults.fitness.length})</h4>
+                      <div className="space-y-1">
+                        {searchResults.fitness.map(f => (
+                          <button key={f.id} onClick={() => handleSearchResultClick('fitness', f.id)}
+                            className="w-full text-left p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition flex items-center gap-3">
+                            <span className="text-base">{f.emoji || '🏃'}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white truncate">{f.name}</p>
+                              <p className="text-xs text-white/40 mt-0.5">{f.date ? new Date(f.date + 'T12:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : f.type}</p>
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Memories */}
+                  {searchResults.memories.length > 0 && (
+                    <div>
+                      <h4 className="text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-2 px-1">Memories ({searchResults.memories.length})</h4>
+                      <div className="space-y-1">
+                        {searchResults.memories.map(m => (
+                          <button key={m.id} onClick={() => handleSearchResultClick('memories', m.id)}
+                            className="w-full text-left p-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition flex items-center gap-3">
+                            <span className="text-base">{m.icon || '💝'}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white truncate">{m.title}</p>
+                              {m.location && <p className="text-xs text-white/40 truncate mt-0.5">{m.location}</p>}
+                            </div>
+                            <ChevronRight className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -9946,39 +10844,49 @@ export default function TripPlanner() {
         }
       `}</style>
 
-      {/* Floating Action Button (FAB) - Quick Add */}
-      {isOwner && !initialAppMode && !showAddMemoryModal && !editingMemory && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && (
-        <div className="fixed bottom-20 md:bottom-8 right-4 md:right-8 z-[90]">
-          {/* FAB Menu - Radial on mobile, list on desktop */}
+      {/* Floating Action Button (FAB) - Quick Add - Aligned with section navigation buttons */}
+      {isOwner && !initialAppMode && !showAddMemoryModal && !editingMemory && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && !showAddTaskModal && !showSharedListModal && !showAddIdeaModal && !showAddSocialModal && !showAddHabitModal && (
+        <div className="fixed top-20 md:top-24 left-4 md:left-6 z-[90]">
+          {/* FAB Menu - Compact 3x3 Grid */}
           {showAddNewMenu && (
             <>
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[89]" onClick={() => setShowAddNewMenu(false)} />
-              <div className="absolute bottom-16 right-0 z-[91] flex flex-col-reverse gap-3 items-end">
-                {[
-                  { action: () => setShowNewTripModal('adventure'), icon: '✈️', label: 'Trip', gradient: 'from-teal-400 to-cyan-500' },
-                  { action: () => setShowAddEventModal(true), icon: '🎉', label: 'Event', gradient: 'from-amber-400 to-orange-500' },
-                  { action: () => setShowAddMemoryModal('milestone'), icon: '💝', label: 'Memory', gradient: 'from-rose-400 to-pink-500' },
-                  { action: () => setShowAddFitnessEventModal(true), icon: '🏃', label: 'Fitness', gradient: 'from-orange-400 to-red-500' },
-                ].map((item, idx) => (
-                  <button
-                    key={item.label}
-                    onClick={() => { setShowAddNewMenu(false); item.action(); }}
-                    className={`flex items-center gap-3 pl-4 pr-2 py-2 rounded-full bg-slate-800 border border-white/20 shadow-2xl transform transition-all duration-200 hover:scale-105`}
-                    style={{
-                      animation: `fabItemIn 0.2s ease-out ${idx * 0.05}s both`,
-                    }}
-                  >
-                    <span className="text-white font-medium text-sm">{item.label}</span>
-                    <span className={`w-10 h-10 rounded-full bg-gradient-to-br ${item.gradient} flex items-center justify-center text-lg shadow-lg`}>
-                      {item.icon}
-                    </span>
-                  </button>
-                ))}
+              <div className="absolute top-16 left-0 z-[91] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
+                style={{ animation: 'fabGridIn 0.15s ease-out both' }}>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { action: () => setShowAddTaskModal('create'), icon: '✅', label: 'Task', gradient: 'from-blue-400 to-indigo-500' },
+                    { action: () => setShowSharedListModal('create'), icon: '🛒', label: 'List', gradient: 'from-emerald-400 to-teal-500' },
+                    { action: () => setShowAddSocialModal('create'), icon: '👥', label: 'Social', gradient: 'from-purple-400 to-violet-500' },
+                    { action: () => setShowAddHabitModal('create'), icon: '🔄', label: 'Habit', gradient: 'from-green-400 to-emerald-500' },
+                    { action: () => setShowAddIdeaModal('create'), icon: '💡', label: 'Idea', gradient: 'from-yellow-400 to-amber-500' },
+                    { action: () => setShowNewTripModal('adventure'), icon: '✈️', label: 'Trip', gradient: 'from-teal-400 to-cyan-500' },
+                    { action: () => setShowAddEventModal(true), icon: '🎉', label: 'Event', gradient: 'from-amber-400 to-orange-500' },
+                    { action: () => setShowAddMemoryModal('milestone'), icon: '💝', label: 'Memory', gradient: 'from-rose-400 to-pink-500' },
+                    { action: () => setShowAddFitnessEventModal(true), icon: '🏃', label: 'Fitness', gradient: 'from-orange-400 to-red-500' },
+                  ].map((item, idx) => (
+                    <button
+                      key={item.label}
+                      onClick={() => { setShowAddNewMenu(false); item.action(); }}
+                      className="flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-xl hover:bg-white/10 transition active:scale-95"
+                      style={{ animation: `fabItemIn 0.12s ease-out ${idx * 0.02}s both` }}
+                    >
+                      <span className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center text-xl shadow-md`}>
+                        {item.icon}
+                      </span>
+                      <span className="text-[11px] text-white/70 font-medium leading-tight">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
               <style>{`
+                @keyframes fabGridIn {
+                  from { opacity: 0; transform: scale(0.9) translateY(-8px); }
+                  to { opacity: 1; transform: scale(1) translateY(0); }
+                }
                 @keyframes fabItemIn {
-                  from { opacity: 0; transform: translateY(20px) scale(0.8); }
-                  to { opacity: 1; transform: translateY(0) scale(1); }
+                  from { opacity: 0; transform: scale(0.8); }
+                  to { opacity: 1; transform: scale(1); }
                 }
               `}</style>
             </>
@@ -9987,24 +10895,24 @@ export default function TripPlanner() {
           {/* Main FAB Button */}
           <button
             onClick={() => setShowAddNewMenu(!showAddNewMenu)}
-            className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-200 active:scale-90 ${
+            className={`w-10 h-10 md:w-12 md:h-12 rounded-full shadow-2xl flex items-center justify-center transition-all duration-200 active:scale-90 ${
               showAddNewMenu
-                ? 'bg-gradient-to-r from-purple-500 to-pink-500 rotate-45'
-                : 'bg-gradient-to-r from-teal-400 to-cyan-500 hover:shadow-teal-500/30'
+                ? 'bg-gradient-to-r from-pink-500 to-rose-500 rotate-45'
+                : 'bg-gradient-to-r from-purple-500 to-violet-600 hover:shadow-purple-500/30'
             }`}
-            style={{ boxShadow: showAddNewMenu ? '0 8px 32px rgba(168, 85, 247, 0.4)' : '0 8px 32px rgba(45, 212, 191, 0.3)' }}
+            style={{ boxShadow: showAddNewMenu ? '0 8px 32px rgba(236, 72, 153, 0.4)' : '0 8px 32px rgba(139, 92, 246, 0.4)' }}
           >
-            <Plus className="w-7 h-7 text-white transition-transform duration-200" />
+            <Plus className="w-5 h-5 md:w-6 md:h-6 text-white transition-transform duration-200" />
           </button>
         </div>
       )}
 
       {/* Mobile Bottom Navigation - Only show on mobile, when not in app mode, and when no modal is open */}
-      {!initialAppMode && !showAddMemoryModal && !editingMemory && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-white/10 z-[100]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      {!initialAppMode && !showAddMemoryModal && !editingMemory && !showOpenDateModal && !showCompanionsModal && !showAddModal && !showNewTripModal && !showLinkModal && !showImportModal && !showGuestModal && !showMyProfileModal && !showAddFitnessEventModal && !editingFitnessEvent && !showAddEventModal && !editingEvent && !editingTrainingWeek && !showAddTaskModal && !showSharedListModal && !showAddIdeaModal && !showAddSocialModal && !showAddHabitModal && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-white/10 z-[100]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)', transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}>
           <div className="flex items-center justify-around py-2 px-1">
             {[
-              { id: 'home', label: 'Home', emoji: '🏠', gradient: 'from-pink-500 to-purple-500' },
+              { id: 'home', label: 'Hub', emoji: '🏠', gradient: 'from-pink-500 to-purple-500' },
               { id: 'travel', label: 'Travel', emoji: '✈️', gradient: 'from-teal-400 to-cyan-500' },
               { id: 'fitness', label: 'Fitness', emoji: '🏃', gradient: 'from-orange-400 to-red-500' },
               { id: 'events', label: 'Events', emoji: '🎉', gradient: 'from-amber-400 to-orange-500' },
@@ -10015,6 +10923,7 @@ export default function TripPlanner() {
                 onClick={() => {
                   setActiveSection(section.id);
                   if (section.id === 'travel') setTravelViewMode('main');
+                  if (section.id === 'home') setHubSubView('home');
                   // Close any open dropdowns
                   setShowComingSoonMenu(false);
                 }}

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#ec4899" />
+    <meta name="description" content="Mike & Adam's Memories - Our story together!" />
+
+    <!-- iOS PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Memories" />
+
+    <!-- Icons -->
+    <link rel="icon" type="image/svg+xml" href="/icon-memories.svg" />
+    <link rel="apple-touch-icon" href="/icon-memories-192.png" />
+
+    <title>Mike & Adam's Memories</title>
+
+    <!-- Preconnect to external resources -->
+    <link rel="preconnect" href="https://images.unsplash.com" />
+
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Google API Client -->
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+
+    <!-- Unregister any existing service worker -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          registrations.forEach(reg => reg.unregister());
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Set the app mode before React loads
+      window.PWA_MODE = 'memories';
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

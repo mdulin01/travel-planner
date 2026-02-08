@@ -899,39 +899,32 @@ export default function TripPlanner() {
   };
 
   // ========== FITNESS WEEK PHOTO HELPERS ==========
-  const [weekPhotoUploading, setWeekPhotoUploading] = useState(null);
+  // Exact same pattern as task photo in AddTaskModal — resize to base64 dataURL, store directly
+  const resizeWeekPhoto = (file, maxWidth = 400) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ratio = Math.min(maxWidth / img.width, maxWidth / img.height, 1);
+          canvas.width = img.width * ratio;
+          canvas.height = img.height * ratio;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleWeekPhotoAdd = async (eventId, weekId, existingPhotos, file) => {
-    if (!file) return;
-    setWeekPhotoUploading(weekId);
-    try {
-      let fileToUpload = file;
-      let fileName = file.name;
-
-      // Convert HEIC/HEIF to JPEG (same as memories)
-      const isHeic = file.type === 'image/heic' || file.type === 'image/heif' ||
-                     file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
-      if (isHeic) {
-        const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
-        fileToUpload = new File([convertedBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' });
-        fileName = fileToUpload.name;
-      }
-
-      const timestamp = Date.now();
-      const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const storageRef = ref(storage, `memories/fitness-${eventId}-${weekId}-${timestamp}_${safeName}`);
-      await uploadBytes(storageRef, fileToUpload);
-      const downloadURL = await getDownloadURL(storageRef);
-
-      const photos = [...(existingPhotos || []), { id: timestamp, url: downloadURL, addedAt: new Date().toISOString() }];
-      updateTrainingWeek(eventId, weekId, { photos });
-      showToast('Photo added!', 'success');
-    } catch (error) {
-      console.error('Week photo upload failed:', error);
-      showToast('Photo upload failed. Please try again.', 'error');
-    } finally {
-      setWeekPhotoUploading(null);
-    }
+    if (!file || !file.type.startsWith('image/')) return;
+    const dataUrl = await resizeWeekPhoto(file);
+    const photos = [...(existingPhotos || []), { id: Date.now(), url: dataUrl, addedAt: new Date().toISOString() }];
+    updateTrainingWeek(eventId, weekId, { photos });
   };
 
   const handleWeekPhotoRemove = (eventId, weekId, existingPhotos, photoId) => {
@@ -6097,9 +6090,9 @@ export default function TripPlanner() {
                                       ))}
                                     </div>
                                   )}
-                                  <label className={`flex items-center gap-2 px-3 py-2 border border-dashed rounded-lg cursor-pointer transition ${weekPhotoUploading === week.id ? 'border-purple-400 bg-purple-500/10 text-purple-300 pointer-events-none' : weekPhotoDrag === week.id ? 'border-orange-400 bg-orange-500/10 text-orange-300' : 'border-white/10 text-white/30 hover:text-white/50 hover:border-white/20'}`}>
-                                    {weekPhotoUploading === week.id ? <Loader className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                                    <span className="text-xs">{weekPhotoUploading === week.id ? 'Uploading...' : 'Add Photo'}</span>
+                                  <label className={`flex items-center gap-2 px-3 py-2 border border-dashed rounded-lg cursor-pointer transition ${weekPhotoDrag === week.id ? 'border-orange-400 bg-orange-500/10 text-orange-300' : 'border-white/10 text-white/30 hover:text-white/50 hover:border-white/20'}`}>
+                                    <Upload className="w-4 h-4" />
+                                    <span className="text-xs">Add Photo</span>
                                     <input
                                       type="file"
                                       accept="image/*,.heic,.heif"
@@ -6218,9 +6211,9 @@ export default function TripPlanner() {
                                       ))}
                                     </div>
                                   )}
-                                  <label className={`flex items-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${weekPhotoUploading === currentWeek.id ? 'border-purple-400 bg-purple-500/10 text-purple-300 pointer-events-none' : weekPhotoDrag === currentWeek.id ? 'border-orange-400 bg-orange-500/10 text-orange-300' : 'border-white/20 text-white/40 hover:text-white/60 hover:border-white/30'}`}>
-                                    {weekPhotoUploading === currentWeek.id ? <Loader className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                                    <span className="text-sm">{weekPhotoUploading === currentWeek.id ? 'Uploading...' : 'Add Photo'}</span>
+                                  <label className={`flex items-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${weekPhotoDrag === currentWeek.id ? 'border-orange-400 bg-orange-500/10 text-orange-300' : 'border-white/20 text-white/40 hover:text-white/60 hover:border-white/30'}`}>
+                                    <Upload className="w-5 h-5" />
+                                    <span className="text-sm">Add Photo</span>
                                     <input
                                       type="file"
                                       accept="image/*,.heic,.heif"

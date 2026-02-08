@@ -11353,23 +11353,40 @@ export default function TripPlanner() {
               <style>{`
                 @keyframes fabGridIn { from { opacity: 0; transform: scale(0.9) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
                 @keyframes fabItemIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+                @keyframes splashPulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.55; } }
               `}</style>
             </>
           )}
           {/* Nav bar background */}
           <div className="relative bg-slate-900 border-t border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            {/* Splash crater effect behind FAB */}
+            {isOwner && (
+              <div className="absolute left-1/2 -translate-x-1/2 -top-3 w-20 h-6 z-[99] pointer-events-none">
+                {/* Curved notch cutout illusion */}
+                <div className="absolute inset-0 rounded-t-[50%] bg-slate-900" />
+                {/* Inner glow splash */}
+                <div className={`absolute -top-1 left-1/2 -translate-x-1/2 w-16 h-4 rounded-t-[50%] blur-sm transition-colors duration-200 ${showAddNewMenu ? 'bg-pink-500/30' : 'bg-purple-500/30'}`} style={{ animation: 'splashPulse 3s ease-in-out infinite' }} />
+                {/* Ripple rings */}
+                <div className={`absolute -top-0.5 left-1/2 -translate-x-1/2 w-[4.5rem] h-3 rounded-t-[50%] border-t transition-colors duration-200 ${showAddNewMenu ? 'border-pink-400/20' : 'border-purple-400/20'}`} />
+              </div>
+            )}
             {/* Raised FAB button - centered, overlapping top of nav */}
             {isOwner && (
               <button
                 onClick={() => setShowAddNewMenu(!showAddNewMenu)}
-                className={`absolute left-1/2 -translate-x-1/2 -top-8 w-13 h-13 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 z-[101] ${
+                className={`absolute left-1/2 -translate-x-1/2 -top-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 z-[101] ${
                   showAddNewMenu
                     ? 'bg-gradient-to-r from-pink-500 to-rose-500 rotate-45'
                     : 'bg-gradient-to-r from-purple-500 to-violet-600'
                 }`}
-                style={{ boxShadow: showAddNewMenu ? '0 0 24px rgba(236, 72, 153, 0.6), 0 0 0 3px rgba(236, 72, 153, 0.15)' : '0 0 24px rgba(139, 92, 246, 0.6), 0 0 0 3px rgba(139, 92, 246, 0.15)', width: '3.25rem', height: '3.25rem' }}
+                style={{
+                  width: '3.75rem', height: '3.75rem',
+                  boxShadow: showAddNewMenu
+                    ? '0 4px 30px rgba(236, 72, 153, 0.7), 0 0 0 4px rgba(236, 72, 153, 0.12), 0 8px 16px rgba(0,0,0,0.4)'
+                    : '0 4px 30px rgba(139, 92, 246, 0.7), 0 0 0 4px rgba(139, 92, 246, 0.12), 0 8px 16px rgba(0,0,0,0.4)'
+                }}
               >
-                <Plus className="w-6 h-6 text-white transition-transform duration-200" />
+                <Plus className="w-7 h-7 text-white transition-transform duration-200" />
               </button>
             )}
             {/* Tab buttons */}
@@ -11389,7 +11406,7 @@ export default function TripPlanner() {
                     if (section.id === 'home') setHubSubView('home');
                     setShowComingSoonMenu(false);
                   }}
-                  className={`relative flex flex-col items-center justify-center py-1.5 rounded-xl transition-all active:scale-95 ${idx === 2 ? 'min-w-[52px] pt-2' : 'min-w-[52px]'} ${
+                  className={`relative flex flex-col items-center justify-center py-1.5 rounded-xl transition-all active:scale-95 ${idx === 2 ? 'min-w-[52px] pt-1' : 'min-w-[52px]'} ${
                     activeSection === section.id ? '' : ''
                   }`}
                 >

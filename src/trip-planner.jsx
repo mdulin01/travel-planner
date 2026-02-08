@@ -3235,7 +3235,7 @@ export default function TripPlanner() {
               {activeSection === 'home' && (
                 <div>
                   <h2 className="text-xl font-bold text-white flex items-center justify-center gap-2">
-                    <span>🏠</span>
+                    <span>⚛️</span>
                     Hub
                   </h2>
                   <p className="text-xs text-slate-400">Plan adventures, stay healthy, build our future</p>

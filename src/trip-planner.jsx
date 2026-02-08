@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Calendar, Plane, Hotel, Music, MapPin, Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Heart, Anchor, Sun, Star, Clock, Users, ExternalLink, Sparkles, Pencil, Check, MoreVertical, Trash2, Palette, Image, Link, Globe, Loader, LogIn, LogOut, User, UserPlus, Share2, Upload, Folder, Edit3, CheckSquare, RefreshCw, Camera, Search, Bell, BellOff } from 'lucide-react';
+import { Calendar, Plane, Hotel, Music, MapPin, Plus, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Heart, Anchor, Sun, Star, Clock, Users, ExternalLink, Sparkles, Pencil, Check, MoreVertical, Trash2, Palette, Image, ImagePlus, Link, Globe, Loader, LogIn, LogOut, User, UserPlus, Share2, Upload, Folder, Edit3, CheckSquare, RefreshCw, Camera, Search, Bell, BellOff } from 'lucide-react';
 
 // Import constants and utilities
 import {
@@ -898,6 +898,39 @@ export default function TripPlanner() {
     if (fitnessCoverCameraRef.current) fitnessCoverCameraRef.current.value = '';
   };
 
+  // ========== FITNESS WEEK PHOTO HELPERS ==========
+  const resizeWeekPhoto = (file, maxWidth = 600) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ratio = Math.min(maxWidth / img.width, maxWidth / img.height, 1);
+          canvas.width = img.width * ratio;
+          canvas.height = img.height * ratio;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleWeekPhotoAdd = async (eventId, weekId, existingPhotos, file) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    const dataUrl = await resizeWeekPhoto(file);
+    const photos = [...(existingPhotos || []), { id: Date.now(), url: dataUrl, addedAt: new Date().toISOString() }];
+    updateTrainingWeek(eventId, weekId, { photos });
+  };
+
+  const handleWeekPhotoRemove = (eventId, weekId, existingPhotos, photoId) => {
+    const photos = (existingPhotos || []).filter(p => p.id !== photoId);
+    updateTrainingWeek(eventId, weekId, { photos });
+  };
+
   // Upload photo/video to Firebase Storage (with HEIC conversion for images) - for modals
   const uploadMemoryMedia = async (file, isEdit = false) => {
     if (!file) return;
@@ -1033,6 +1066,8 @@ export default function TripPlanner() {
   const [currentCompanion, setCurrentCompanion] = useState(null); // logged-in companion object
   const [showMyProfileModal, setShowMyProfileModal] = useState(false); // companion profile editor
   const [editingTrainingWeek, setEditingTrainingWeek] = useState(null); // { eventId, week } for editing training week
+  const [pastWeeksExpanded, setPastWeeksExpanded] = useState(false); // collapse past fitness weeks
+  const [weekPhotoDrag, setWeekPhotoDrag] = useState(null); // weekId of week being dragged onto
   const [isOwner, setIsOwner] = useState(false); // true if Mike or Adam
   const [bouncingEmoji, setBouncingEmoji] = useState(null); // { emoji, x, y, dx, dy } for bouncing animation
 
@@ -6101,6 +6136,44 @@ export default function TripPlanner() {
                                   rows={2}
                                 />
                               </div>
+
+                              {/* Current Week Photos */}
+                              <div className="mt-4">
+                                {(currentWeek.photos || []).length > 0 && (
+                                  <div className="flex flex-wrap gap-2 mb-2">
+                                    {(currentWeek.photos || []).map(photo => (
+                                      <div key={photo.id} className="relative group/photo">
+                                        <img src={photo.url} alt="" className="w-24 h-24 rounded-xl object-cover border border-white/20" />
+                                        <button
+                                          onClick={() => handleWeekPhotoRemove(selectedFitnessEvent.id, currentWeek.id, currentWeek.photos, photo.id)}
+                                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition"
+                                        >
+                                          <X className="w-3 h-3 text-white" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                <div
+                                  onDrop={(e) => { e.preventDefault(); setWeekPhotoDrag(null); const file = e.dataTransfer?.files?.[0]; if (file) handleWeekPhotoAdd(selectedFitnessEvent.id, currentWeek.id, currentWeek.photos || [], file); }}
+                                  onDragOver={(e) => { e.preventDefault(); setWeekPhotoDrag(currentWeek.id); }}
+                                  onDragLeave={() => setWeekPhotoDrag(null)}
+                                  className={`flex items-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition ${
+                                    weekPhotoDrag === currentWeek.id ? 'border-orange-400 bg-orange-500/10 text-orange-300' : 'border-white/20 text-white/40 hover:text-white/60 hover:border-white/30'
+                                  }`}
+                                  onClick={() => {
+                                    const input = document.createElement('input');
+                                    input.type = 'file';
+                                    input.accept = 'image/*';
+                                    input.onchange = (e) => { const file = e.target.files?.[0]; if (file) handleWeekPhotoAdd(selectedFitnessEvent.id, currentWeek.id, currentWeek.photos || [], file); };
+                                    input.click();
+                                  }}
+                                >
+                                  <ImagePlus className="w-5 h-5" />
+                                  <span className="text-sm">Add photo</span>
+                                  <span className="text-xs text-white/20 hidden md:inline ml-auto">or drag & drop</span>
+                                </div>
+                              </div>
                             </div>
                           );
                         }
@@ -6108,17 +6181,22 @@ export default function TripPlanner() {
                       })()}
 
                       {/* All Weeks Accordion */}
-                      <div className="space-y-2">
-                        {getActiveTrainingPlan(selectedFitnessEvent.id).map((week, index) => {
-                          const today = new Date();
-                          const todayStr = today.toISOString().split('T')[0];
+                      {(() => {
+                        const allWeeks = getActiveTrainingPlan(selectedFitnessEvent.id);
+                        const today = new Date();
+                        const todayStr = today.toISOString().split('T')[0];
+                        const pastWeeks = allWeeks.filter(w => w.endDate < todayStr);
+                        const currentAndFutureWeeks = allWeeks.filter(w => w.endDate >= todayStr);
+                        const isTriathlon = selectedFitnessEvent?.id === 'triathlon-2026';
+
+                        const renderWeekCard = (week, index) => {
                           const isCurrent = week.startDate <= todayStr && week.endDate >= todayStr;
                           const isPast = week.endDate < todayStr;
-                          const isTriathlon = selectedFitnessEvent?.id === 'triathlon-2026';
                           const completedCount = isTriathlon
                             ? (week.runs?.filter(r => r.mike).length || 0) + (week.crossTraining?.filter(c => c.mike).length || 0)
                             : (week.runs?.filter(r => r.mike && r.adam).length || 0) + (week.crossTraining?.filter(c => c.mike && c.adam).length || 0);
                           const totalCount = (week.runs?.length || 0) + (week.crossTraining?.length || 0);
+                          const weekPhotos = week.photos || [];
 
                           return (
                             <details
@@ -6142,6 +6220,7 @@ export default function TripPlanner() {
                                       Week {index + 1}
                                       {week.isRecovery && <span className="text-xs px-2 py-0.5 bg-green-500/30 text-green-300 rounded-full">Recovery</span>}
                                       {isCurrent && <span className="text-xs px-2 py-0.5 bg-orange-500 text-white rounded-full">Current</span>}
+                                      {weekPhotos.length > 0 && <span className="text-xs text-white/40">📷 {weekPhotos.length}</span>}
                                     </div>
                                     <div className="text-white/60 text-sm">
                                       {formatDate(week.startDate)} - {formatDate(week.endDate)}
@@ -6175,17 +6254,17 @@ export default function TripPlanner() {
 
                               <div className="px-4 pb-4 pt-2 border-t border-white/10">
                                 <div className="grid md:grid-cols-2 gap-4">
-                                  {/* Activities (Runs/Swims/Bikes for triathlon) */}
+                                  {/* Activities */}
                                   <div>
                                     <h4 className="text-sm font-semibold text-orange-300 mb-2">
-                                      {selectedFitnessEvent?.id === 'triathlon-2026' ? '🏃 Activities' : '🏃 Runs'}
+                                      {isTriathlon ? '🏃 Activities' : '🏃 Runs'}
                                     </h4>
                                     <div className="space-y-1">
                                       {week.runs?.map(run => (
                                         <div
                                           key={run.id}
                                           className={`flex items-center gap-2 p-2 rounded ${
-                                            selectedFitnessEvent?.id === 'triathlon-2026'
+                                            isTriathlon
                                               ? (run.mike ? 'bg-green-500/20' : 'bg-white/5')
                                               : ((run.mike && run.adam) ? 'bg-green-500/20' : (run.mike || run.adam) ? 'bg-yellow-500/20' : 'bg-white/5')
                                           }`}
@@ -6200,7 +6279,7 @@ export default function TripPlanner() {
                                             >
                                               {run.mike && <Check className="w-3 h-3 text-white" />}
                                             </button>
-                                            {selectedFitnessEvent?.id !== 'triathlon-2026' && (
+                                            {!isTriathlon && (
                                               <button
                                                 onClick={() => updateWorkout(selectedFitnessEvent.id, week.id, 'runs', run.id, { adam: !run.adam })}
                                                 className={`w-5 h-5 rounded-full border flex items-center justify-center ${
@@ -6227,7 +6306,7 @@ export default function TripPlanner() {
                                         <div
                                           key={ct.id}
                                           className={`flex items-center gap-2 p-2 rounded ${
-                                            selectedFitnessEvent?.id === 'triathlon-2026'
+                                            isTriathlon
                                               ? (ct.mike ? 'bg-green-500/20' : 'bg-white/5')
                                               : ((ct.mike && ct.adam) ? 'bg-green-500/20' : (ct.mike || ct.adam) ? 'bg-yellow-500/20' : 'bg-white/5')
                                           }`}
@@ -6242,7 +6321,7 @@ export default function TripPlanner() {
                                             >
                                               {ct.mike && <Check className="w-3 h-3 text-white" />}
                                             </button>
-                                            {selectedFitnessEvent?.id !== 'triathlon-2026' && (
+                                            {!isTriathlon && (
                                               <button
                                                 onClick={() => updateWorkout(selectedFitnessEvent.id, week.id, 'crossTraining', ct.id, { adam: !ct.adam })}
                                                 className={`w-5 h-5 rounded-full border flex items-center justify-center ${
@@ -6272,11 +6351,91 @@ export default function TripPlanner() {
                                     rows={1}
                                   />
                                 </div>
+
+                                {/* Week Photos */}
+                                <div className="mt-3">
+                                  {weekPhotos.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                      {weekPhotos.map(photo => (
+                                        <div key={photo.id} className="relative group/photo">
+                                          <img src={photo.url} alt="" className="w-20 h-20 rounded-lg object-cover border border-white/10" />
+                                          <button
+                                            onClick={() => handleWeekPhotoRemove(selectedFitnessEvent.id, week.id, weekPhotos, photo.id)}
+                                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition"
+                                          >
+                                            <X className="w-3 h-3 text-white" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <div
+                                    onDrop={(e) => { e.preventDefault(); setWeekPhotoDrag(null); const file = e.dataTransfer?.files?.[0]; if (file) handleWeekPhotoAdd(selectedFitnessEvent.id, week.id, weekPhotos, file); }}
+                                    onDragOver={(e) => { e.preventDefault(); setWeekPhotoDrag(week.id); }}
+                                    onDragLeave={() => setWeekPhotoDrag(null)}
+                                    className={`flex items-center gap-2 px-3 py-2 border border-dashed rounded-lg cursor-pointer transition ${
+                                      weekPhotoDrag === week.id ? 'border-orange-400 bg-orange-500/10 text-orange-300' : 'border-white/10 text-white/30 hover:text-white/50 hover:border-white/20'
+                                    }`}
+                                    onClick={() => {
+                                      const input = document.createElement('input');
+                                      input.type = 'file';
+                                      input.accept = 'image/*';
+                                      input.onchange = (e) => { const file = e.target.files?.[0]; if (file) handleWeekPhotoAdd(selectedFitnessEvent.id, week.id, weekPhotos, file); };
+                                      input.click();
+                                    }}
+                                  >
+                                    <ImagePlus className="w-4 h-4" />
+                                    <span className="text-xs">Add photo</span>
+                                    <span className="text-[10px] text-white/20 hidden md:inline ml-auto">or drag & drop</span>
+                                  </div>
+                                </div>
                               </div>
                             </details>
                           );
-                        })}
-                      </div>
+                        };
+
+                        return (
+                          <div className="space-y-2">
+                            {/* Past Weeks - Collapsed */}
+                            {pastWeeks.length > 0 && (
+                              <div className="rounded-xl border border-white/10 overflow-hidden">
+                                <button
+                                  onClick={() => setPastWeeksExpanded(!pastWeeksExpanded)}
+                                  className="w-full flex items-center justify-between px-4 py-3 bg-white/5 hover:bg-white/10 transition text-white/60"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {pastWeeksExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                    <span className="text-sm font-medium">Past Weeks ({pastWeeks.length})</span>
+                                  </div>
+                                  <span className="text-xs text-white/40">
+                                    {pastWeeks.filter(w => {
+                                      const cc = isTriathlon
+                                        ? (w.runs?.filter(r => r.mike).length || 0) + (w.crossTraining?.filter(c => c.mike).length || 0)
+                                        : (w.runs?.filter(r => r.mike && r.adam).length || 0) + (w.crossTraining?.filter(c => c.mike && c.adam).length || 0);
+                                      const tc = (w.runs?.length || 0) + (w.crossTraining?.length || 0);
+                                      return tc > 0 && cc === tc;
+                                    }).length}/{pastWeeks.length} completed
+                                  </span>
+                                </button>
+                                {pastWeeksExpanded && (
+                                  <div className="space-y-2 p-2">
+                                    {pastWeeks.map((week) => {
+                                      const origIndex = allWeeks.findIndex(w => w.id === week.id);
+                                      return renderWeekCard(week, origIndex);
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Current + Future Weeks */}
+                            {currentAndFutureWeeks.map((week) => {
+                              const origIndex = allWeeks.findIndex(w => w.id === week.id);
+                              return renderWeekCard(week, origIndex);
+                            })}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 

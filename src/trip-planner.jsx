@@ -6159,16 +6159,6 @@ export default function TripPlanner() {
                                     <Pencil className="w-5 h-5" />
                                   </button>
                                 </div>
-                                {(currentWeek.photos || []).length > 0 && (
-                                  <div className="flex flex-wrap gap-2 mb-4">
-                                    {(currentWeek.photos || []).map(photo => (
-                                      <div key={photo.id} className="relative group/photo">
-                                        <img src={photo.url} alt="" className="w-16 h-16 rounded-xl object-cover border border-white/20" />
-                                        <button onClick={() => handleWeekPhotoRemove(selectedFitnessEvent.id, currentWeek.id, currentWeek.photos, photo.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition"><X className="w-3 h-3 text-white" /></button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
                                 {currentWeek.weekNotes && <div className="mb-4 px-4 py-2 bg-white/10 rounded-lg text-white/90">{currentWeek.weekNotes}</div>}
                                 <div className="grid md:grid-cols-2 gap-4">
                                   <div className="bg-white/10 rounded-xl p-4">

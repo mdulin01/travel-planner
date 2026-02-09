@@ -11400,12 +11400,12 @@ export default function TripPlanner() {
                       alt="Fitness"
                       className={`transition-all duration-200 ${activeSection === section.id ? 'scale-110' : ''}`}
                       style={{
-                        width: '34px',
-                        height: '42px',
+                        width: '38px',
+                        height: '46px',
                         objectFit: 'contain',
                         filter: activeSection === section.id
-                          ? 'brightness(1.3) drop-shadow(0 0 6px rgba(249,115,22,0.6))'
-                          : 'brightness(0.5) grayscale(0.6)',
+                          ? 'brightness(1.6) saturate(1.3) drop-shadow(0 0 8px rgba(249,115,22,0.7)) drop-shadow(0 0 16px rgba(249,115,22,0.3))'
+                          : 'brightness(0.85) saturate(0.8) drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
                       }}
                     />
                   ) : (

@@ -4348,65 +4348,28 @@ export default function TripPlanner() {
           {activeSection === 'travel' && (
           <div className="mt-8">
             {/* Action Buttons - Travel (left padding for FAB on mobile) */}
-            <div className="flex gap-1.5 md:gap-2 mb-4 items-center flex-wrap pl-0 sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
-              {/* View Switcher - compact on mobile */}
-              <button
-                onClick={() => setTravelViewMode('main')}
-                className={`px-3 md:px-4 py-2 rounded-xl font-medium transition text-sm md:text-base ${
-                  travelViewMode === 'main'
-                    ? 'bg-teal-500 text-white'
-                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                }`}
-              >
-                <span className="hidden sm:inline">✈️ Adventures</span>
-                <span className="sm:hidden">✈️</span>
-              </button>
-              <button
-                onClick={() => setTravelViewMode('random')}
-                className={`px-3 md:px-4 py-2 rounded-xl font-medium transition text-sm md:text-base ${
-                  travelViewMode === 'random'
-                    ? 'bg-teal-500 text-white'
-                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                }`}
-                title="Random Adventure"
-              >
-                🎲
-              </button>
-              <button
-                onClick={() => setTravelViewMode('wishlist')}
-                className={`px-3 md:px-4 py-2 rounded-xl font-medium transition text-sm md:text-base ${
-                  travelViewMode === 'wishlist'
-                    ? 'bg-teal-500 text-white'
-                    : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                }`}
-                title="Wishlist"
-              >
-                <span className="hidden sm:inline">🦄 Wishlist</span>
-                <span className="sm:hidden">🦄</span>
-              </button>
-
-              {/* Spacer */}
-              <div className="flex-1" />
-
-              {/* Right-justified icon buttons */}
-              {isOwner && (
-                <>
-                  <button
-                    onClick={() => setShowOpenDateModal(true)}
-                    className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-xl bg-white/10 text-slate-300 hover:bg-white/20 transition"
-                    title="Open Dates"
-                  >
-                    📅
-                  </button>
-                  <button
-                    onClick={() => setShowTravelCircleModal(true)}
-                    className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-xl bg-white/10 text-slate-300 hover:bg-white/20 transition"
-                    title="Travel Circle"
-                  >
-                    👥
-                  </button>
-                </>
-              )}
+            <div className="flex gap-1.5 md:gap-2 mb-4 items-center justify-start sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
+              {[
+                { id: 'main', emoji: '✈️', action: () => setTravelViewMode('main') },
+                { id: 'random', emoji: '🎲', action: () => setTravelViewMode('random') },
+                { id: 'wishlist', emoji: '🦄', action: () => setTravelViewMode('wishlist') },
+                ...(isOwner ? [
+                  { id: 'opendates', emoji: '📅', action: () => setShowOpenDateModal(true) },
+                  { id: 'circle', emoji: '👥', action: () => setShowTravelCircleModal(true) },
+                ] : []),
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={tab.action}
+                  className={`flex-1 md:flex-none px-3 md:px-4 py-2 rounded-xl font-medium transition text-base md:text-lg text-center ${
+                    travelViewMode === tab.id
+                      ? 'bg-teal-500 text-white shadow-lg'
+                      : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                  }`}
+                >
+                  {tab.emoji}
+                </button>
+              ))}
             </div>
 
           {/* Trip Detail View - Inline (like Events) */}
@@ -5617,24 +5580,22 @@ export default function TripPlanner() {
           {activeSection === 'fitness' && (
             <div className="mt-8">
               {/* Fitness View Mode Toggle (left padding for FAB on mobile) */}
-              <div className="flex gap-1.5 md:gap-2 mb-4 items-center flex-wrap pl-0 sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
-                {/* View Switcher - compact on mobile */}
+              <div className="flex gap-1.5 md:gap-2 mb-4 items-center justify-start sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
                 {[
-                  { id: 'events', label: 'Events', emoji: '🎯' },
-                  { id: 'training', label: 'Training', emoji: '📋' },
-                  { id: 'stats', label: 'Stats', emoji: '📊' }
+                  { id: 'events', emoji: '🎯' },
+                  { id: 'training', emoji: '📋' },
+                  { id: 'stats', emoji: '📊' },
                 ].map(mode => (
                   <button
                     key={mode.id}
                     onClick={() => setFitnessViewMode(mode.id)}
-                    className={`flex items-center gap-1 md:gap-2 px-3 md:px-4 py-2 rounded-xl font-medium transition text-sm md:text-base ${
+                    className={`flex-1 md:flex-none px-3 md:px-4 py-2 rounded-xl font-medium transition text-base md:text-lg text-center ${
                       fitnessViewMode === mode.id
-                        ? 'bg-orange-500 text-white'
+                        ? 'bg-orange-500 text-white shadow-lg'
                         : 'bg-white/10 text-slate-300 hover:bg-white/20'
                     }`}
                   >
-                    <span>{mode.emoji}</span>
-                    <span className="hidden sm:inline">{mode.label}</span>
+                    {mode.emoji}
                   </button>
                 ))}
               </div>
@@ -7552,20 +7513,22 @@ export default function TripPlanner() {
                 <>
                   {/* Events List View */}
                   {/* View Mode Toggle (left padding for FAB on mobile) */}
-                  <div className="flex gap-1.5 md:gap-2 mb-4 items-center flex-wrap pl-0 sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
-                    {/* View Switcher - compact on mobile */}
-                    {['upcoming', 'past', 'all'].map(mode => (
+                  <div className="flex gap-1.5 md:gap-2 mb-4 items-center justify-start sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
+                    {[
+                      { id: 'upcoming', emoji: '📅' },
+                      { id: 'past', emoji: '📜' },
+                      { id: 'all', emoji: '📋' },
+                    ].map(mode => (
                       <button
-                        key={mode}
-                        onClick={() => setEventViewMode(mode)}
-                        className={`px-3 md:px-4 py-2 rounded-xl font-medium transition text-sm md:text-base ${
-                          eventViewMode === mode
-                            ? 'bg-amber-500 text-white'
+                        key={mode.id}
+                        onClick={() => setEventViewMode(mode.id)}
+                        className={`flex-1 md:flex-none px-3 md:px-4 py-2 rounded-xl font-medium transition text-base md:text-lg text-center ${
+                          eventViewMode === mode.id
+                            ? 'bg-amber-500 text-white shadow-lg'
                             : 'bg-white/10 text-slate-300 hover:bg-white/20'
                         }`}
                       >
-                        {mode === 'upcoming' ? '📅' : mode === 'past' ? '📜' : '📋'}
-                        <span className="hidden sm:inline ml-1">{mode === 'upcoming' ? 'Upcoming' : mode === 'past' ? 'Past' : 'All'}</span>
+                        {mode.emoji}
                       </button>
                     ))}
                   </div>
@@ -7839,23 +7802,23 @@ export default function TripPlanner() {
           {activeSection === 'memories' && (
             <div className="mt-8">
               {/* Controls Row - Responsive mobile buttons (left padding for FAB on mobile) */}
-              <div className="flex gap-1.5 md:gap-2 mb-4 items-center flex-wrap pl-0 sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
-                {/* View Switcher - compact on mobile */}
+              <div className="flex gap-1.5 md:gap-2 mb-4 items-center justify-start sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
+                {/* View Switcher */}
                 {[
-                  { id: 'timeline', label: 'Timeline', emoji: '📅' },
-                  { id: 'events', label: 'Events', emoji: '🎭' },
-                  { id: 'media', label: 'Media', emoji: '📸' },
+                  { id: 'timeline', emoji: '📅' },
+                  { id: 'events', emoji: '🎭' },
+                  { id: 'media', emoji: '📸' },
                 ].map(view => (
                   <button
                     key={view.id}
                     onClick={() => setMemoriesView(view.id)}
-                    className={`px-3 md:px-4 py-2 rounded-xl font-medium transition text-sm md:text-base ${
+                    className={`px-3 md:px-4 py-2 rounded-xl font-medium transition text-base md:text-lg text-center ${
                       memoriesView === view.id
-                        ? 'bg-rose-500 text-white'
+                        ? 'bg-rose-500 text-white shadow-lg'
                         : 'bg-white/10 text-slate-300 hover:bg-white/20'
                     }`}
                   >
-                    {view.emoji}<span className="hidden sm:inline ml-1">{view.label}</span>
+                    {view.emoji}
                   </button>
                 ))}
 

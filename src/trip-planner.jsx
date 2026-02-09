@@ -11322,7 +11322,7 @@ export default function TripPlanner() {
           {showAddNewMenu && isOwner && (
             <>
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[99]" onClick={() => setShowAddNewMenu(false)} />
-              <div className="absolute bottom-full left-1/2 mb-[60px] z-[101] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
+              <div className="absolute bottom-full left-1/2 mb-[68px] z-[101] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
                 style={{ animation: 'fabGridUp 0.2s cubic-bezier(0.16,1,0.3,1) both', transformOrigin: 'bottom center' }}>
                 <div className="grid grid-cols-3 gap-3">
                   {[
@@ -11367,7 +11367,7 @@ export default function TripPlanner() {
             {isOwner && (
               <button
                 onClick={() => setShowAddNewMenu(!showAddNewMenu)}
-                className={`absolute left-1/2 -translate-x-1/2 -top-12 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 z-[101] ${
+                className={`absolute left-1/2 -translate-x-1/2 -top-14 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 z-[101] ${
                   showAddNewMenu
                     ? 'bg-gradient-to-r from-pink-500 to-rose-500 rotate-45'
                     : 'bg-gradient-to-r from-purple-500 to-violet-600'

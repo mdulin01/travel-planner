@@ -5999,7 +5999,6 @@ export default function TripPlanner() {
                                     <div className="text-white font-medium flex items-center gap-2">
                                       Week {index + 1}
                                       {week.isRecovery && <span className="text-xs px-2 py-0.5 bg-green-500/30 text-green-300 rounded-full">Recovery</span>}
-                                      {weekPhotos.length > 0 && <span className="text-xs text-white/40">📷 {weekPhotos.length}</span>}
                                     </div>
                                     <div className="text-white/60 text-sm">
                                       {formatDate(week.startDate)} - {formatDate(week.endDate)}
@@ -6007,6 +6006,14 @@ export default function TripPlanner() {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-3">
+                                  {weekPhotos.length > 0 && (
+                                    <div className="flex -space-x-2">
+                                      {weekPhotos.slice(0, 3).map(photo => (
+                                        <img key={photo.id} src={photo.url} alt="" className="w-8 h-8 rounded-lg object-cover border-2 border-slate-800" />
+                                      ))}
+                                      {weekPhotos.length > 3 && <span className="w-8 h-8 rounded-lg bg-white/20 border-2 border-slate-800 flex items-center justify-center text-[10px] text-white/70 font-medium">+{weekPhotos.length - 3}</span>}
+                                    </div>
+                                  )}
                                   <div className="text-white/60 text-sm">{completedCount}/{totalCount} done</div>
                                   <div className="w-20 h-2 bg-white/10 rounded-full overflow-hidden">
                                     <div className={`h-full rounded-full ${completedCount === totalCount ? 'bg-green-500' : 'bg-orange-400'}`} style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }} />
@@ -6141,6 +6148,16 @@ export default function TripPlanner() {
                                     <Pencil className="w-5 h-5" />
                                   </button>
                                 </div>
+                                {(currentWeek.photos || []).length > 0 && (
+                                  <div className="flex flex-wrap gap-2 mb-4">
+                                    {(currentWeek.photos || []).map(photo => (
+                                      <div key={photo.id} className="relative group/photo">
+                                        <img src={photo.url} alt="" className="w-16 h-16 rounded-xl object-cover border border-white/20" />
+                                        <button onClick={() => handleWeekPhotoRemove(selectedFitnessEvent.id, currentWeek.id, currentWeek.photos, photo.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition"><X className="w-3 h-3 text-white" /></button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                                 {currentWeek.weekNotes && <div className="mb-4 px-4 py-2 bg-white/10 rounded-lg text-white/90">{currentWeek.weekNotes}</div>}
                                 <div className="grid md:grid-cols-2 gap-4">
                                   <div className="bg-white/10 rounded-xl p-4">
@@ -8208,6 +8225,24 @@ export default function TripPlanner() {
                           isFitness: true
                         });
                       }
+                    });
+
+                    // Gather training week photos into Fitness Achievements
+                    Object.entries(fitnessTrainingPlans).forEach(([eventId, weeks]) => {
+                      const eventInfo = fitnessEvents.find(e => e.id === eventId);
+                      (weeks || []).forEach((week, idx) => {
+                        if (week.photos && week.photos.length > 0) {
+                          completedFitnessEvents.push({
+                            id: `fitness-week-${eventId}-${week.id || idx}`,
+                            title: `📸 ${eventInfo?.name || 'Training'} - Week ${week.weekNumber || idx + 1}`,
+                            date: week.startDate ? formatDate(week.startDate) : '',
+                            image: week.photos[0]?.url,
+                            images: week.photos.map(p => p.url),
+                            isFitness: true,
+                            isFitnessWeekPhoto: true,
+                          });
+                        }
+                      });
                     });
 
                     // Get memories by category

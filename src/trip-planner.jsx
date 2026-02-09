@@ -2800,7 +2800,8 @@ export default function TripPlanner() {
           ...week,
           runs: mergedRuns,
           crossTraining: mergedCrossTraining,
-          weekNotes: fbWeek.weekNotes || week.weekNotes
+          weekNotes: fbWeek.weekNotes || week.weekNotes,
+          photos: fbWeek.photos || week.photos,
         };
       });
     };

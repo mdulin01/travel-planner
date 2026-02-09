@@ -1089,6 +1089,16 @@ export default function TripPlanner() {
   const [currentCompanion, setCurrentCompanion] = useState(null); // logged-in companion object
   const [showMyProfileModal, setShowMyProfileModal] = useState(false); // companion profile editor
   const [editingTrainingWeek, setEditingTrainingWeek] = useState(null); // { eventId, week } for editing training week
+  // Sync editingTrainingWeek photos when fitnessTrainingPlans updates (e.g., after upload from within modal)
+  useEffect(() => {
+    if (editingTrainingWeek) {
+      const plan = fitnessTrainingPlans[editingTrainingWeek.eventId];
+      const freshWeek = plan?.find(w => w.id === editingTrainingWeek.week.id);
+      if (freshWeek && JSON.stringify(freshWeek.photos) !== JSON.stringify(editingTrainingWeek.week.photos)) {
+        setEditingTrainingWeek(prev => prev ? { ...prev, week: { ...prev.week, photos: freshWeek.photos } } : null);
+      }
+    }
+  }, [fitnessTrainingPlans]);
   const [pastWeeksExpanded, setPastWeeksExpanded] = useState(false); // collapse past fitness weeks
   const [weekPhotoDrag, setWeekPhotoDrag] = useState(null); // weekId of week being dragged onto
   const [isOwner, setIsOwner] = useState(false); // true if Mike or Adam
@@ -8364,6 +8374,24 @@ export default function TripPlanner() {
                               else if (event.isPartyEvent) {
                                 setActiveSection('events');
                                 setSelectedPartyEvent(event.partyEvent);
+                              } else if (event.isFitnessWeekPhoto) {
+                                // Navigate to fitness and open the training week edit modal
+                                const parts = event.id.replace('fitness-week-', '').split('-');
+                                // eventId could contain hyphens, weekId starts with "week-"
+                                const weekIdMatch = event.id.match(/week-(\d+)/);
+                                if (weekIdMatch) {
+                                  const weekId = `week-${weekIdMatch[1]}`;
+                                  const eventId = event.id.replace('fitness-week-', '').replace(/-week-\d+$/, '');
+                                  const plan = fitnessTrainingPlans[eventId];
+                                  const week = plan?.find(w => w.id === weekId);
+                                  if (week) {
+                                    setActiveSection('fitness');
+                                    setFitnessViewMode('training');
+                                    const fitEvent = fitnessEvents.find(e => e.id === eventId);
+                                    if (fitEvent) setSelectedFitnessEvent(fitEvent);
+                                    setEditingTrainingWeek({ eventId, week: { ...week } });
+                                  }
+                                }
                               }
                             }}
                             onDragOver={(e) => {
@@ -8381,7 +8409,7 @@ export default function TripPlanner() {
                               if (event.isMemory) handleCardDrop(e, event.id);
                               else if (event.isPartyEvent) handleEventCardDrop(e, event.partyEvent.id);
                             }}
-                            className={`rounded-xl p-4 hover:bg-white/20 transition ${(event.isMemory || event.isPartyEvent) ? 'cursor-pointer' : ''} relative group ${
+                            className={`rounded-xl p-4 hover:bg-white/20 transition ${(event.isMemory || event.isPartyEvent || event.isFitnessWeekPhoto) ? 'cursor-pointer' : ''} relative group ${
                               event.isSpecial || event.isFirstTime ? 'special-memory-card' : 'bg-white/10'
                             } ${dragOverMemoryId === event.id ? 'ring-4 ring-orange-500 ring-opacity-50' : ''} ${
                               event.isPartyEvent && dragOverEventId === event.partyEvent?.id ? 'ring-4 ring-purple-500 ring-opacity-50' : ''
@@ -9449,6 +9477,57 @@ export default function TripPlanner() {
                   rows={3}
                 />
               </div>
+
+              {/* Photos */}
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-3">📷 Photos</h3>
+                {(editingTrainingWeek.week.photos || []).length > 0 && (
+                  <div className="flex flex-wrap gap-3 mb-3">
+                    {(editingTrainingWeek.week.photos || []).map(photo => (
+                      <div key={photo.id} className="relative group/photo">
+                        <img src={photo.url} alt="" className="w-24 h-24 rounded-xl object-cover border border-white/20" />
+                        <button
+                          onClick={() => {
+                            setEditingTrainingWeek(prev => ({
+                              ...prev,
+                              week: { ...prev.week, photos: (prev.week.photos || []).filter(p => p.id !== photo.id) }
+                            }));
+                          }}
+                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition shadow-lg"
+                        >
+                          <X className="w-3.5 h-3.5 text-white" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div
+                  onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer?.files?.[0]; if (file) handleWeekPhotoAdd(editingTrainingWeek.eventId, editingTrainingWeek.week.id, editingTrainingWeek.week.photos || [], file); }}
+                  onDragOver={(e) => e.preventDefault()}
+                >
+                  {uploadingWeekPhotoId === editingTrainingWeek.week.id ? (
+                    <div className="flex items-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl border-orange-400 bg-orange-500/10 text-orange-300">
+                      <Loader className="w-5 h-5 animate-spin" />
+                      <span className="text-sm">Uploading photo...</span>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-2 px-4 py-3 border-2 border-dashed rounded-xl cursor-pointer transition border-white/20 text-white/40 hover:text-white/60 hover:border-white/30">
+                      <Upload className="w-5 h-5" />
+                      <span className="text-sm">Add Photo</span>
+                      <input
+                        type="file"
+                        accept="image/*,.heic,.heif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleWeekPhotoAdd(editingTrainingWeek.eventId, editingTrainingWeek.week.id, editingTrainingWeek.week.photos || [], file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Footer */}
@@ -9472,6 +9551,7 @@ export default function TripPlanner() {
                     runs: week.runs,
                     crossTraining: week.crossTraining,
                     weekNotes: week.weekNotes,
+                    photos: week.photos,
                     totalMiles: totalMiles
                   });
 

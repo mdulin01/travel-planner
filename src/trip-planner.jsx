@@ -11355,6 +11355,12 @@ export default function TripPlanner() {
             </>
           )}
           {/* Nav bar background */}
+          <style>{`
+            @keyframes fabPulse {
+              0%, 100% { box-shadow: 0 4px 30px rgba(139,92,246,0.7), 0 0 0 4px rgba(139,92,246,0.12), 0 8px 16px rgba(0,0,0,0.4); }
+              50% { box-shadow: 0 4px 40px rgba(139,92,246,0.95), 0 0 0 8px rgba(139,92,246,0.2), 0 0 60px rgba(139,92,246,0.35), 0 8px 16px rgba(0,0,0,0.4); }
+            }
+          `}</style>
           <div className="relative bg-slate-900 border-t border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
             {/* Atlas is the visual bridge between FAB and nav — no splash needed */}
             {/* Raised FAB button - centered, overlapping top of nav */}
@@ -11370,7 +11376,8 @@ export default function TripPlanner() {
                   width: '3.75rem', height: '3.75rem',
                   boxShadow: showAddNewMenu
                     ? '0 4px 30px rgba(236, 72, 153, 0.7), 0 0 0 4px rgba(236, 72, 153, 0.12), 0 8px 16px rgba(0,0,0,0.4)'
-                    : '0 4px 30px rgba(139, 92, 246, 0.7), 0 0 0 4px rgba(139, 92, 246, 0.12), 0 8px 16px rgba(0,0,0,0.4)'
+                    : '0 4px 30px rgba(139, 92, 246, 0.7), 0 0 0 4px rgba(139, 92, 246, 0.12), 0 8px 16px rgba(0,0,0,0.4)',
+                  animation: showAddNewMenu ? 'none' : 'fabPulse 2.5s ease-in-out infinite',
                 }}
               >
                 <Plus className="w-7 h-7 text-white transition-transform duration-200" />

@@ -4346,7 +4346,7 @@ export default function TripPlanner() {
 
           {/* ========== TRAVEL SECTION ========== */}
           {activeSection === 'travel' && (
-          <div className="mt-8">
+          <div>
             {/* Action Buttons - Travel (left padding for FAB on mobile) */}
             <div className="flex gap-1.5 md:gap-2 mb-4 items-center justify-start sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
               {[
@@ -5578,7 +5578,7 @@ export default function TripPlanner() {
 
           {/* ========== FITNESS SECTION ========== */}
           {activeSection === 'fitness' && (
-            <div className="mt-8">
+            <div>
               {/* Fitness View Mode Toggle (left padding for FAB on mobile) */}
               <div className="flex gap-1.5 md:gap-2 mb-4 items-center justify-start sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
                 {[
@@ -6907,7 +6907,7 @@ export default function TripPlanner() {
 
           {/* ========== EVENTS SECTION ========== */}
           {activeSection === 'events' && (
-            <div className="mt-8">
+            <div>
               {/* Event Detail View */}
               {selectedPartyEvent ? (
                 <div>
@@ -7800,7 +7800,7 @@ export default function TripPlanner() {
 
           {/* ========== MEMORIES SECTION ========== */}
           {activeSection === 'memories' && (
-            <div className="mt-8">
+            <div>
               {/* Controls Row - Responsive mobile buttons (left padding for FAB on mobile) */}
               <div className="flex gap-1.5 md:gap-2 mb-4 items-center justify-start sticky top-0 z-20 bg-slate-800/95 backdrop-blur-md py-3 -mx-6 px-6">
                 {/* View Switcher */}

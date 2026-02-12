@@ -507,6 +507,9 @@ export default function TripPlanner() {
   // Deep link state — opens a specific Hub item when the URL contains ?hub=type&id=itemId
   const [pendingDeepLink, setPendingDeepLink] = useState(initialDeepLink);
 
+  // Week Ahead planner state
+  const [weekQuickAddDay, setWeekQuickAddDay] = useState(null); // YYYY-MM-DD of day whose + was tapped
+
   // Refs for dependencies defined later
   const saveToFirestoreRef = useRef(() => {});
   const tripColorsRef = useRef([]);
@@ -3632,6 +3635,201 @@ export default function TripPlanner() {
               {/* ===== HUB DASHBOARD VIEW ===== */}
               {hubSubView === 'home' && (
                 <>
+                  {/* WEEK AHEAD PLANNER */}
+                  {(() => {
+                    const today = new Date();
+                    const todayStr = today.toISOString().split('T')[0];
+                    // Compute Monday of current week
+                    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon...
+                    const monday = new Date(today);
+                    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+                    monday.setHours(0,0,0,0);
+
+                    const weekDays = Array.from({ length: 7 }, (_, i) => {
+                      const d = new Date(monday);
+                      d.setDate(monday.getDate() + i);
+                      const dateStr = d.toISOString().split('T')[0];
+                      const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                      return { date: dateStr, dayName: dayNames[d.getDay()], dayNum: d.getDate(), month: d.getMonth() + 1, isToday: dateStr === todayStr };
+                    });
+
+                    const weekStart = weekDays[0].date;
+                    const weekEnd = weekDays[6].date;
+
+                    // Collect items for each day
+                    const dayItems = {};
+                    weekDays.forEach(d => { dayItems[d.date] = []; });
+
+                    // Tasks with dueDate
+                    sharedTasks.filter(t => t.status !== 'done' && t.dueDate && t.dueDate >= weekStart && t.dueDate <= weekEnd).forEach(t => {
+                      if (dayItems[t.dueDate]) dayItems[t.dueDate].push({ type: 'task', emoji: '✅', label: t.title, assignedTo: t.assignedTo, id: t.id });
+                    });
+
+                    // Party events
+                    partyEvents.filter(e => e.date && e.date >= weekStart && e.date <= weekEnd).forEach(e => {
+                      if (dayItems[e.date]) dayItems[e.date].push({ type: 'event', emoji: e.emoji || '🎉', label: e.name || e.title || 'Event', id: e.id, time: e.time });
+                    });
+
+                    // Social plans
+                    sharedSocial.filter(s => s.status !== 'done' && s.date && s.date >= weekStart && s.date <= weekEnd).forEach(s => {
+                      const typeEmojis = { text: '💬', call: '📞', meetup: '🤝', gather: '🎊' };
+                      if (dayItems[s.date]) dayItems[s.date].push({ type: 'social', emoji: typeEmojis[s.type] || '👥', label: s.person || s.title, id: s.id });
+                    });
+
+                    // Trips spanning into this week
+                    trips.filter(t => t.dates?.start && t.dates?.end).forEach(t => {
+                      const tripStart = t.dates.start;
+                      const tripEnd = t.dates.end;
+                      if (tripEnd < weekStart || tripStart > weekEnd) return;
+                      weekDays.forEach(d => {
+                        if (d.date >= tripStart && d.date <= tripEnd) {
+                          dayItems[d.date].push({ type: 'trip', emoji: t.emoji || '✈️', label: t.destination, id: t.id });
+                        }
+                      });
+                    });
+
+                    // Fitness workouts from training plans
+                    Object.values(fitnessTrainingPlans || {}).forEach(plan => {
+                      if (!Array.isArray(plan)) return;
+                      plan.forEach(week => {
+                        [...(week.runs || []), ...(week.crossTraining || [])].forEach(w => {
+                          if (w.date && w.date >= weekStart && w.date <= weekEnd && dayItems[w.date]) {
+                            const label = w.miles ? `${w.miles}mi` : (w.type || 'Workout');
+                            dayItems[w.date].push({ type: 'fitness', emoji: '🏃', label, id: w.id });
+                          }
+                        });
+                      });
+                    });
+
+                    // Google Calendar events
+                    (googleCalendarEvents || []).forEach(e => {
+                      const start = e.start?.split('T')[0];
+                      const end = e.end?.split('T')[0] || start;
+                      if (!start || end < weekStart || start > weekEnd) return;
+                      weekDays.forEach(d => {
+                        if (d.date >= start && d.date <= end) {
+                          dayItems[d.date].push({ type: 'gcal', emoji: '📅', label: e.title, id: e.id });
+                        }
+                      });
+                    });
+
+                    // Event of the week — first upcoming event or trip this week
+                    const eventOfWeek = partyEvents.find(e => e.date && e.date >= todayStr && e.date <= weekEnd) ||
+                      trips.find(t => t.dates?.start && t.dates.start >= todayStr && t.dates.start <= weekEnd);
+
+                    const isCollapsed = collapsedSections.weekAhead;
+
+                    return (
+                      <div className="mb-6 rounded-3xl border border-purple-500/20 bg-gradient-to-br from-purple-950/30 via-slate-900/50 to-slate-950/40 backdrop-blur-xl shadow-[0_0_30px_rgba(147,51,234,0.06)]">
+                        <button
+                          onClick={() => toggleDashSection('weekAhead')}
+                          className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">📅</span>
+                            <span className="text-white font-bold text-lg">Week Ahead</span>
+                            <span className="text-slate-400 text-sm ml-1">
+                              {weekDays[0].month}/{weekDays[0].dayNum} – {weekDays[6].month}/{weekDays[6].dayNum}
+                            </span>
+                          </div>
+                          <svg className={`w-5 h-5 text-slate-400 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+
+                        {!isCollapsed && (
+                          <div className="px-4 pb-4">
+                            {/* Event of the Week Banner */}
+                            {eventOfWeek && (
+                              <div className="mb-3 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center gap-2">
+                                <span className="text-lg">{eventOfWeek.emoji || '🌟'}</span>
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-amber-200 font-semibold text-sm truncate block">
+                                    {eventOfWeek.name || eventOfWeek.destination || 'Event'}
+                                  </span>
+                                  <span className="text-amber-300/60 text-xs">
+                                    {eventOfWeek.date ? new Date(eventOfWeek.date + 'T12:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''}
+                                    {eventOfWeek.time ? ` · ${eventOfWeek.time}` : ''}
+                                    {eventOfWeek.dates?.start ? new Date(eventOfWeek.dates.start + 'T12:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''}
+                                  </span>
+                                </div>
+                                <span className="text-amber-300/50 text-xs font-medium uppercase tracking-wider">This Week</span>
+                              </div>
+                            )}
+
+                            {/* 7-Day Grid */}
+                            <div className="grid grid-cols-7 gap-1 overflow-x-auto">
+                              {weekDays.map(day => (
+                                <div
+                                  key={day.date}
+                                  className={`rounded-xl p-1.5 min-h-[100px] flex flex-col ${
+                                    day.isToday
+                                      ? 'bg-purple-500/15 border border-purple-400/30 ring-1 ring-purple-400/20'
+                                      : 'bg-white/5 border border-white/5'
+                                  }`}
+                                >
+                                  {/* Day Header */}
+                                  <div className="text-center mb-1">
+                                    <div className={`text-[10px] font-bold uppercase tracking-wider ${day.isToday ? 'text-purple-300' : 'text-slate-500'}`}>
+                                      {day.dayName}
+                                    </div>
+                                    <div className={`text-sm font-bold ${day.isToday ? 'text-purple-200' : 'text-slate-300'}`}>
+                                      {day.dayNum}
+                                    </div>
+                                  </div>
+
+                                  {/* Items */}
+                                  <div className="flex-1 space-y-0.5 min-h-0">
+                                    {(dayItems[day.date] || []).slice(0, 4).map((item, idx) => {
+                                      const colors = {
+                                        task: 'bg-teal-500/20 text-teal-300',
+                                        event: 'bg-amber-500/20 text-amber-300',
+                                        social: 'bg-pink-500/20 text-pink-300',
+                                        trip: 'bg-green-500/20 text-green-300',
+                                        fitness: 'bg-blue-500/20 text-blue-300',
+                                        gcal: 'bg-indigo-500/20 text-indigo-300',
+                                      };
+                                      return (
+                                        <div key={`${item.type}-${item.id}-${idx}`} className={`px-1 py-0.5 rounded text-[9px] truncate ${colors[item.type] || 'bg-white/10 text-slate-300'}`}>
+                                          <span className="mr-0.5">{item.emoji}</span>
+                                          <span className="truncate">{item.label}</span>
+                                        </div>
+                                      );
+                                    })}
+                                    {(dayItems[day.date] || []).length > 4 && (
+                                      <div className="text-[9px] text-slate-500 text-center">+{dayItems[day.date].length - 4}</div>
+                                    )}
+                                  </div>
+
+                                  {/* Quick Add Button */}
+                                  <div className="relative mt-1">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setWeekQuickAddDay(weekQuickAddDay === day.date ? null : day.date); }}
+                                      className="w-full py-0.5 rounded-lg text-slate-500 hover:text-purple-300 hover:bg-purple-500/10 transition text-xs"
+                                    >
+                                      +
+                                    </button>
+                                    {weekQuickAddDay === day.date && (
+                                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 bg-slate-700 border border-white/20 rounded-xl shadow-xl z-30 py-1 min-w-[110px]">
+                                        <button onClick={() => { setShowAddTaskModal({ _prefill: true, dueDate: day.date }); setWeekQuickAddDay(null); }} className="w-full px-3 py-1.5 text-left text-xs text-white hover:bg-white/10 flex items-center gap-2">
+                                          <span>✅</span> Task
+                                        </button>
+                                        <button onClick={() => { setNewEventData(prev => ({ ...prev, date: day.date })); setShowAddEventModal(true); setWeekQuickAddDay(null); }} className="w-full px-3 py-1.5 text-left text-xs text-white hover:bg-white/10 flex items-center gap-2">
+                                          <span>🎉</span> Event
+                                        </button>
+                                        <button onClick={() => { setShowAddSocialModal({ _prefill: true, date: day.date }); setWeekQuickAddDay(null); }} className="w-full px-3 py-1.5 text-left text-xs text-white hover:bg-white/10 flex items-center gap-2">
+                                          <span>👥</span> Social
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* TODAY'S TASKS WIDGET */}
                   {(() => {
                     const todayTasks = sharedTasks.filter(t => t.status !== 'done' && isTaskDueToday(t));
@@ -8779,7 +8977,7 @@ export default function TripPlanner() {
             }
             setShowAddSocialModal(null);
           }}
-          editSocial={typeof showAddSocialModal === 'object' && showAddSocialModal?.id ? showAddSocialModal : null}
+          editSocial={typeof showAddSocialModal === 'object' && showAddSocialModal?.id ? showAddSocialModal : (typeof showAddSocialModal === 'object' && showAddSocialModal?._prefill ? showAddSocialModal : null)}
           currentUser={currentUser}
           partyEvents={partyEvents}
           onLinkToEvent={navigateToEvent}

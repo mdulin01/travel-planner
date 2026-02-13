@@ -63,8 +63,12 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocs,
+  deleteDoc,
   onSnapshot,
-  collection
+  collection,
+  query,
+  orderBy
 } from 'firebase/firestore';
 import {
   getStorage,
@@ -92,6 +96,16 @@ try {
   console.warn('FCM not supported on this device:', e.message);
 }
 const googleProvider = new GoogleAuthProvider();
+
+// Generate a unique guest token for invitation links
+const generateGuestToken = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let token = '';
+  for (let i = 0; i < 12; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+};
 
 // Rainbow gradient for pride flair
 const RainbowBar = () => (
@@ -796,10 +810,13 @@ export default function TripPlanner() {
     }
   };
 
-  // Handle event cover image upload in modal
+  // Handle event cover image upload in modal — uploads to Firebase Storage
   const handleEventCoverImageSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const sizeError = validateFileSize(file);
+    if (sizeError) { showToast(sizeError, 'error'); return; }
 
     // Show preview immediately
     const previewUrl = URL.createObjectURL(file);
@@ -807,34 +824,42 @@ export default function TripPlanner() {
     setUploadingEventCoverImage(true);
 
     try {
-      // Convert to data URL for storage (works offline, persists in Firestore)
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUrl = reader.result;
-        if (editingEvent) {
-          setEditingEvent({ ...editingEvent, coverImage: dataUrl });
-        } else {
-          setNewEventData({ ...newEventData, coverImage: dataUrl });
-        }
-        setUploadingEventCoverImage(false);
-      };
-      reader.onerror = () => {
-        if (editingEvent) {
-          setEditingEvent({ ...editingEvent, coverImage: previewUrl });
-        } else {
-          setNewEventData({ ...newEventData, coverImage: previewUrl });
-        }
-        setUploadingEventCoverImage(false);
-      };
-      reader.readAsDataURL(file);
+      let fileToUpload = file;
+      let fileName = file.name;
+
+      // Convert HEIC/HEIF to JPEG
+      const isHeic = file.type === 'image/heic' || file.type === 'image/heif' ||
+                     file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+      if (isHeic) {
+        const convertedBlob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+        fileToUpload = new File([convertedBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), { type: 'image/jpeg' });
+        fileName = fileToUpload.name;
+      }
+
+      const timestamp = Date.now();
+      const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const storageRef = ref(storage, `events/covers/${timestamp}_${safeName}`);
+      await uploadBytes(storageRef, fileToUpload);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      if (!isMountedRef.current) return;
+
+      if (editingEvent) {
+        setEditingEvent({ ...editingEvent, coverImage: downloadURL });
+      } else {
+        setNewEventData(prev => ({ ...prev, coverImage: downloadURL }));
+      }
+      setUploadingEventCoverImage(false);
     } catch (error) {
-      console.error('Error processing event cover image:', error);
+      console.error('Error uploading event cover image:', error);
+      // Fallback: use preview URL
       if (editingEvent) {
         setEditingEvent({ ...editingEvent, coverImage: previewUrl });
       } else {
-        setNewEventData({ ...newEventData, coverImage: previewUrl });
+        setNewEventData(prev => ({ ...prev, coverImage: previewUrl }));
       }
       setUploadingEventCoverImage(false);
+      showToast('Cover image upload failed', 'error');
     }
   };
 
@@ -1645,6 +1670,15 @@ export default function TripPlanner() {
   const [uploadingEventCoverImage, setUploadingEventCoverImage] = useState(false);
   const eventCoverFileRef = useRef(null);
   const eventCoverCameraRef = useRef(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [newGuestName, setNewGuestName] = useState('');
+  const [newGuestEmail, setNewGuestEmail] = useState('');
+  const [newGuestPhone, setNewGuestPhone] = useState('');
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(null); // guestId whose link was copied
+  const [showShareSheet, setShowShareSheet] = useState(null); // event object to share
+  const [newListName, setNewListName] = useState('');
+  const [newListEmoji, setNewListEmoji] = useState('🍕');
+  const [newListItemText, setNewListItemText] = useState('');
   // ========== END EVENTS/PARTY SECTION STATE ==========
 
   // Use refs for companions and trips to avoid recreating auth listener when they change
@@ -2411,7 +2445,21 @@ export default function TripPlanner() {
     saveFitnessRef.current = saveFitnessToFirestore;
   }, [saveFitnessToFirestore]);
 
-  // Save party/social events to Firestore
+  // Save a single event to its own Firestore doc (for guest access)
+  const saveEventDoc = useCallback(async (event) => {
+    if (!event?.id) return;
+    try {
+      await setDoc(doc(db, 'events', String(event.id)), {
+        ...event,
+        lastUpdated: new Date().toISOString(),
+        updatedBy: currentUser || 'system'
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error saving event doc:', error);
+    }
+  }, [currentUser]);
+
+  // Save party/social events to Firestore (legacy + individual docs)
   const savePartyEventsToFirestore = useCallback(async (newEvents) => {
     if (!user) return;
 
@@ -2419,11 +2467,18 @@ export default function TripPlanner() {
       const updates = { lastUpdated: new Date().toISOString(), updatedBy: currentUser };
       if (newEvents !== null && newEvents !== undefined) updates.events = newEvents;
       await setDoc(doc(db, 'tripData', 'partyEvents'), updates, { merge: true });
+
+      // Also save each event as its own document for guest access
+      if (newEvents) {
+        for (const event of newEvents) {
+          await saveEventDoc(event);
+        }
+      }
     } catch (error) {
       console.error('Error saving party events to Firestore:', error);
       showToast('Failed to save event. Please try again.', 'error');
     }
-  }, [user, currentUser, showToast]);
+  }, [user, currentUser, showToast, saveEventDoc]);
 
   // ========== SHARED HUB SAVE & CRUD ==========
   const hubDataLoadedRef = useRef(false);
@@ -7367,7 +7422,7 @@ export default function TripPlanner() {
                       </h3>
                       {isOwner && (
                         <div className="text-sm text-slate-400">
-                          ✅ {(selectedPartyEvent.guests || []).filter(g => g.rsvp === 'yes').length + 2} confirmed
+                          ✅ {(selectedPartyEvent.guests || []).filter(g => g.rsvp === 'going').length + 2} confirmed
                         </div>
                       )}
                     </div>
@@ -7442,9 +7497,9 @@ export default function TripPlanner() {
                                     {(guest.email || '?').charAt(0).toUpperCase()}
                                   </div>
                                   <div>
-                                    <div className="text-white text-sm">{guest.email}</div>
+                                    <div className="text-white text-sm">{guest.name || guest.email}</div>
                                     <div className="text-slate-500 text-xs">
-                                      {guest.permission === 'edit' ? '✏️ Can edit' : '👁️ View only'}
+                                      {guest.email || guest.phone || ''}
                                     </div>
                                   </div>
                                 </div>
@@ -7468,15 +7523,15 @@ export default function TripPlanner() {
                                       savePartyEventsToFirestore(newEvents);
                                     }}
                                     className={`text-xs px-2 py-1 rounded-full border-0 cursor-pointer ${
-                                      guest.rsvp === 'yes' ? 'bg-green-500/30 text-green-300' :
-                                      guest.rsvp === 'no' ? 'bg-red-500/30 text-red-300' :
+                                      guest.rsvp === 'going' ? 'bg-green-500/30 text-green-300' :
+                                      guest.rsvp === 'not-going' ? 'bg-red-500/30 text-red-300' :
                                       guest.rsvp === 'maybe' ? 'bg-yellow-500/30 text-yellow-300' :
                                       'bg-slate-500/30 text-slate-300'
                                     }`}
                                   >
                                     <option value="pending">⏳ Pending</option>
-                                    <option value="yes">✅ Going</option>
-                                    <option value="no">❌ Not Going</option>
+                                    <option value="going">✅ Going</option>
+                                    <option value="not-going">❌ Not Going</option>
                                     <option value="maybe">🤔 Maybe</option>
                                   </select>
                                   {/* Desktop delete button */}
@@ -7496,72 +7551,50 @@ export default function TripPlanner() {
                       </div>
                     )}
 
-                    {/* Add Guest */}
+                    {/* Add Guest / Invite */}
                     {isOwner && (
-                      <div className="flex gap-2">
-                        <input
-                          type="email"
-                          placeholder="Add guest email..."
-                          value={eventGuestEmail}
-                          onChange={(e) => setEventGuestEmail(e.target.value)}
-                          className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-500"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && eventGuestEmail.includes('@')) {
-                              const newGuest = {
-                                id: Date.now(),
-                                email: eventGuestEmail,
-                                permission: eventGuestPermission,
-                                rsvp: 'pending',
-                                addedBy: currentUser,
-                                addedAt: new Date().toISOString()
-                              };
-                              const newEvents = partyEvents.map(ev =>
-                                ev.id === selectedPartyEvent.id
-                                  ? { ...ev, guests: [...(ev.guests || []), newGuest] }
-                                  : ev
-                              );
-                              setPartyEvents(newEvents);
-                              setSelectedPartyEvent(newEvents.find(e => e.id === selectedPartyEvent.id));
-                              savePartyEventsToFirestore(newEvents);
-                              setEventGuestEmail('');
-                            }
-                          }}
-                        />
-                        <select
-                          value={eventGuestPermission}
-                          onChange={(e) => setEventGuestPermission(e.target.value)}
-                          className="px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white text-sm focus:outline-none"
-                        >
-                          <option value="edit">✏️ Edit</option>
-                          <option value="view">👁️ View</option>
-                        </select>
+                      <div className="space-y-3">
                         <button
-                          onClick={() => {
-                            if (eventGuestEmail.includes('@')) {
-                              const newGuest = {
-                                id: Date.now(),
-                                email: eventGuestEmail,
-                                permission: eventGuestPermission,
-                                rsvp: 'pending',
-                                addedBy: currentUser,
-                                addedAt: new Date().toISOString()
-                              };
-                              const newEvents = partyEvents.map(ev =>
-                                ev.id === selectedPartyEvent.id
-                                  ? { ...ev, guests: [...(ev.guests || []), newGuest] }
-                                  : ev
-                              );
-                              setPartyEvents(newEvents);
-                              setSelectedPartyEvent(newEvents.find(e => e.id === selectedPartyEvent.id));
-                              savePartyEventsToFirestore(newEvents);
-                              setEventGuestEmail('');
-                            }
-                          }}
-                          disabled={!eventGuestEmail.includes('@')}
-                          className="px-4 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => setShowInviteModal(selectedPartyEvent)}
+                          className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:opacity-90 transition flex items-center justify-center gap-2"
                         >
                           <UserPlus className="w-5 h-5" />
+                          Invite Guests
                         </button>
+
+                        {/* Quick share link for the event */}
+                        {(selectedPartyEvent.guests || []).length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {(selectedPartyEvent.guests || []).map(guest => (
+                              <button
+                                key={guest.id}
+                                onClick={async () => {
+                                  const link = `${window.location.origin}/event/${selectedPartyEvent.id}?t=${guest.token}`;
+                                  try {
+                                    await navigator.clipboard.writeText(link);
+                                    setInviteLinkCopied(guest.id);
+                                    setTimeout(() => setInviteLinkCopied(null), 2000);
+                                    showToast(`Link copied for ${guest.name || guest.email}!`, 'success');
+                                  } catch {
+                                    showToast('Could not copy link', 'error');
+                                  }
+                                }}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition ${
+                                  inviteLinkCopied === guest.id
+                                    ? 'bg-green-500/30 text-green-300'
+                                    : 'bg-white/10 text-white/70 hover:bg-white/20'
+                                }`}
+                                title={`Copy invite link for ${guest.name || guest.email}`}
+                              >
+                                {inviteLinkCopied === guest.id ? (
+                                  <><Check className="w-3 h-3" /> Copied!</>
+                                ) : (
+                                  <><Share2 className="w-3 h-3" /> {guest.name || guest.email?.split('@')[0]}</>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -7763,6 +7796,147 @@ export default function TripPlanner() {
                       </div>
                     )}
                   </div>
+
+                  {/* Collaborative Lists */}
+                  <div className="bg-white/10 rounded-2xl p-4 border border-white/20 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-white font-semibold flex items-center gap-2">
+                        📋 Lists
+                      </h3>
+                    </div>
+
+                    {/* Existing Lists */}
+                    {(selectedPartyEvent.lists || []).map(list => (
+                      <div key={list.id} className="mb-4 last:mb-0">
+                        <h4 className="text-white/80 text-sm font-medium mb-2">{list.emoji} {list.name}</h4>
+                        <div className="space-y-1.5">
+                          {(list.items || []).map(item => (
+                            <div key={item.id} className="flex items-center justify-between bg-slate-800 px-3 py-2 rounded-lg">
+                              <span className="text-white text-sm">{item.text}</span>
+                              {item.claimedByName ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/30 text-green-300">
+                                  {item.claimedByName}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-slate-500">unclaimed</span>
+                              )}
+                            </div>
+                          ))}
+                          {(list.items || []).length === 0 && (
+                            <p className="text-slate-500 text-sm text-center py-2">No items yet</p>
+                          )}
+                        </div>
+                        {/* Add item to this list */}
+                        {isOwner && (
+                          <div className="flex gap-2 mt-2">
+                            <input
+                              type="text"
+                              placeholder="Add item..."
+                              value={newListItemText}
+                              onChange={(e) => setNewListItemText(e.target.value)}
+                              className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-500"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && newListItemText.trim()) {
+                                  const newItem = { id: Date.now(), text: newListItemText.trim(), claimedBy: null, claimedByName: null };
+                                  const updatedLists = (selectedPartyEvent.lists || []).map(l =>
+                                    l.id === list.id ? { ...l, items: [...(l.items || []), newItem] } : l
+                                  );
+                                  const newEvents = partyEvents.map(ev =>
+                                    ev.id === selectedPartyEvent.id ? { ...ev, lists: updatedLists } : ev
+                                  );
+                                  setPartyEvents(newEvents);
+                                  setSelectedPartyEvent(newEvents.find(e => e.id === selectedPartyEvent.id));
+                                  savePartyEventsToFirestore(newEvents);
+                                  setNewListItemText('');
+                                }
+                              }}
+                            />
+                            <button
+                              onClick={() => {
+                                if (newListItemText.trim()) {
+                                  const newItem = { id: Date.now(), text: newListItemText.trim(), claimedBy: null, claimedByName: null };
+                                  const updatedLists = (selectedPartyEvent.lists || []).map(l =>
+                                    l.id === list.id ? { ...l, items: [...(l.items || []), newItem] } : l
+                                  );
+                                  const newEvents = partyEvents.map(ev =>
+                                    ev.id === selectedPartyEvent.id ? { ...ev, lists: updatedLists } : ev
+                                  );
+                                  setPartyEvents(newEvents);
+                                  setSelectedPartyEvent(newEvents.find(e => e.id === selectedPartyEvent.id));
+                                  savePartyEventsToFirestore(newEvents);
+                                  setNewListItemText('');
+                                }
+                              }}
+                              disabled={!newListItemText.trim()}
+                              className="px-3 py-2 bg-purple-500 text-white rounded-xl hover:bg-purple-600 transition disabled:opacity-50"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Add New List */}
+                    {isOwner && (
+                      <div className="mt-4 pt-4 border-t border-white/10">
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center text-lg hover:bg-white/20 transition"
+                            onClick={() => {
+                              const listEmojis = ['🍕', '🎁', '🎵', '🍷', '🎮', '📦', '🛒', '✨'];
+                              const idx = listEmojis.indexOf(newListEmoji);
+                              setNewListEmoji(listEmojis[(idx + 1) % listEmojis.length]);
+                            }}
+                          >
+                            {newListEmoji}
+                          </button>
+                          <input
+                            type="text"
+                            placeholder="New list name (e.g., What to Bring)"
+                            value={newListName}
+                            onChange={(e) => setNewListName(e.target.value)}
+                            className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-purple-500"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && newListName.trim()) {
+                                const newList = { id: Date.now(), name: newListName.trim(), emoji: newListEmoji, items: [] };
+                                const updatedLists = [...(selectedPartyEvent.lists || []), newList];
+                                const newEvents = partyEvents.map(ev =>
+                                  ev.id === selectedPartyEvent.id ? { ...ev, lists: updatedLists } : ev
+                                );
+                                setPartyEvents(newEvents);
+                                setSelectedPartyEvent(newEvents.find(e => e.id === selectedPartyEvent.id));
+                                savePartyEventsToFirestore(newEvents);
+                                setNewListName('');
+                                setNewListEmoji('🍕');
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              if (newListName.trim()) {
+                                const newList = { id: Date.now(), name: newListName.trim(), emoji: newListEmoji, items: [] };
+                                const updatedLists = [...(selectedPartyEvent.lists || []), newList];
+                                const newEvents = partyEvents.map(ev =>
+                                  ev.id === selectedPartyEvent.id ? { ...ev, lists: updatedLists } : ev
+                                );
+                                setPartyEvents(newEvents);
+                                setSelectedPartyEvent(newEvents.find(e => e.id === selectedPartyEvent.id));
+                                savePartyEventsToFirestore(newEvents);
+                                setNewListName('');
+                                setNewListEmoji('🍕');
+                              }
+                            }}
+                            disabled={!newListName.trim()}
+                            className="px-3 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition disabled:opacity-50"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <>
@@ -7816,7 +7990,7 @@ export default function TripPlanner() {
                           <div
                             key={event.id}
                             data-search-id={`events-${event.id}`}
-                            onClick={() => setEditingPartyEvent(event)}
+                            onClick={() => setSelectedPartyEvent(event)}
                             onDragOver={(e) => { e.preventDefault(); setDragOverEventId(event.id); }}
                             onDragLeave={() => setDragOverEventId(null)}
                             onDrop={(e) => { e.stopPropagation(); handleEventCardDrop(e, event.id); }}
@@ -10261,11 +10435,190 @@ export default function TripPlanner() {
               <button onClick={() => {
                 const updatedEvents = partyEvents.map(e => e.id === editingPartyEvent.id ? editingPartyEvent : e);
                 setPartyEvents(updatedEvents);
+                savePartyEventsToFirestore(updatedEvents);
                 setEditingPartyEvent(null);
-                showToast('Event updated!');
+                showToast('Event updated!', 'success');
               }} className="w-full py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold rounded-xl hover:opacity-90 transition">
                 Save Changes
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Guest Invite Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-2xl w-full max-w-lg max-h-[85dvh] overflow-y-auto border border-white/20">
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-pink-400" />
+                  Invite Guests
+                </h2>
+                <button onClick={() => { setShowInviteModal(null); setNewGuestName(''); setNewGuestEmail(''); setNewGuestPhone(''); }} className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-slate-400 text-sm mt-1">{showInviteModal.emoji} {showInviteModal.name}</p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Add New Guest Form */}
+              <div className="space-y-3">
+                <h3 className="text-white font-semibold text-sm">Add a Guest</h3>
+                <input
+                  type="text"
+                  placeholder="Name *"
+                  value={newGuestName}
+                  onChange={(e) => setNewGuestName(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-pink-400"
+                />
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={newGuestEmail}
+                  onChange={(e) => setNewGuestEmail(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-pink-400"
+                />
+                <input
+                  type="tel"
+                  placeholder="Phone (for text invite)"
+                  value={newGuestPhone}
+                  onChange={(e) => setNewGuestPhone(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-pink-400"
+                />
+                <button
+                  onClick={() => {
+                    if (!newGuestName.trim()) { showToast('Name is required', 'error'); return; }
+                    const newGuest = {
+                      id: Date.now(),
+                      name: newGuestName.trim(),
+                      email: newGuestEmail.trim() || null,
+                      phone: newGuestPhone.trim() || null,
+                      token: generateGuestToken(),
+                      rsvp: 'pending',
+                      plusOne: 0,
+                      note: '',
+                      permission: 'edit',
+                      addedBy: currentUser,
+                      addedAt: new Date().toISOString()
+                    };
+                    const newEvents = partyEvents.map(ev =>
+                      ev.id === showInviteModal.id
+                        ? { ...ev, guests: [...(ev.guests || []), newGuest] }
+                        : ev
+                    );
+                    setPartyEvents(newEvents);
+                    if (selectedPartyEvent?.id === showInviteModal.id) {
+                      setSelectedPartyEvent(newEvents.find(e => e.id === showInviteModal.id));
+                    }
+                    setShowInviteModal(newEvents.find(e => e.id === showInviteModal.id));
+                    savePartyEventsToFirestore(newEvents);
+                    setNewGuestName('');
+                    setNewGuestEmail('');
+                    setNewGuestPhone('');
+                    showToast(`${newGuest.name} added!`, 'success');
+                  }}
+                  disabled={!newGuestName.trim()}
+                  className="w-full py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white font-semibold rounded-xl hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <UserPlus className="w-5 h-5" />
+                  Add Guest
+                </button>
+              </div>
+
+              {/* Current Guests with Share Links */}
+              {(showInviteModal.guests || []).length > 0 && (
+                <div>
+                  <h3 className="text-white font-semibold text-sm mb-3">Guest List ({(showInviteModal.guests || []).length})</h3>
+                  <div className="space-y-2">
+                    {(showInviteModal.guests || []).map(guest => {
+                      const inviteLink = `${window.location.origin}/event/${showInviteModal.id}?t=${guest.token}`;
+                      const inviteMessage = `🏳️‍🌈✨ You're Invited! ✨🏳️‍🌈\n\n${guest.name}, you're cordially summoned to:\n\n🎉 ${showInviteModal.name}\n📅 ${showInviteModal.date ? new Date(showInviteModal.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'TBD'}${showInviteModal.time ? ` at ${showInviteModal.time}` : ''}\n📍 ${showInviteModal.location || 'TBD'}\n\n${showInviteModal.description || ''}\n\nRSVP & see all the details:\n${inviteLink}\n\nHosted with love by Mike & Adam 💕`;
+
+                      return (
+                        <div key={guest.id} className="bg-white/5 rounded-xl p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-gradient-to-r from-pink-400 to-purple-400 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                {(guest.name || '?').charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="text-white text-sm font-medium">{guest.name}</div>
+                                <div className="text-slate-500 text-xs">{guest.email || guest.phone || 'No contact info'}</div>
+                              </div>
+                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              guest.rsvp === 'going' ? 'bg-green-500/30 text-green-300' :
+                              guest.rsvp === 'maybe' ? 'bg-yellow-500/30 text-yellow-300' :
+                              guest.rsvp === 'not-going' ? 'bg-red-500/30 text-red-300' :
+                              'bg-slate-500/30 text-slate-300'
+                            }`}>
+                              {guest.rsvp === 'going' ? '✅ Going' :
+                               guest.rsvp === 'maybe' ? '🤔 Maybe' :
+                               guest.rsvp === 'not-going' ? '❌ Declined' :
+                               '⏳ Pending'}
+                            </span>
+                          </div>
+
+                          {/* Share buttons */}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                if (navigator.share) {
+                                  try {
+                                    await navigator.share({ title: showInviteModal.name, text: inviteMessage, url: inviteLink });
+                                  } catch {}
+                                } else {
+                                  await navigator.clipboard.writeText(inviteMessage);
+                                  showToast('Invite copied!', 'success');
+                                }
+                              }}
+                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-purple-500/30 to-pink-500/30 text-purple-300 rounded-lg text-xs hover:from-purple-500/40 hover:to-pink-500/40 transition"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                              Share
+                            </button>
+                            {guest.email && (
+                              <a
+                                href={`mailto:${guest.email}?subject=${encodeURIComponent(`You're invited: ${showInviteModal.name}`)}&body=${encodeURIComponent(inviteMessage)}`}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-500/20 text-blue-300 rounded-lg text-xs hover:bg-blue-500/30 transition"
+                              >
+                                ✉️ Email
+                              </a>
+                            )}
+                            {guest.phone && (
+                              <a
+                                href={`sms:${guest.phone}?body=${encodeURIComponent(inviteMessage)}`}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-green-500/20 text-green-300 rounded-lg text-xs hover:bg-green-500/30 transition"
+                              >
+                                💬 Text
+                              </a>
+                            )}
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(inviteLink);
+                                  setInviteLinkCopied(guest.id);
+                                  setTimeout(() => setInviteLinkCopied(null), 2000);
+                                } catch {}
+                              }}
+                              className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs transition ${
+                                inviteLinkCopied === guest.id
+                                  ? 'bg-green-500/30 text-green-300'
+                                  : 'bg-white/10 text-white/60 hover:bg-white/20'
+                              }`}
+                            >
+                              {inviteLinkCopied === guest.id ? <><Check className="w-3.5 h-3.5" /> Copied</> : '🔗 Link'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -11318,14 +11671,28 @@ export default function TripPlanner() {
                 </div>
               )}
 
-              {/* Invite Guests - Coming Soon */}
+              {/* Invite Guests */}
               <div>
                 <label className="block text-sm font-medium text-white/70 mb-2">Invite Guests</label>
-                <div className="p-4 bg-white/5 border border-dashed border-white/20 rounded-xl text-center">
-                  <UserPlus className="w-6 h-6 text-white/30 mx-auto mb-2" />
-                  <p className="text-white/40 text-sm">Guest invitations coming soon!</p>
-                  <p className="text-white/30 text-xs mt-1">You'll be able to invite friends to your event</p>
-                </div>
+                {editingEvent ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const evt = editingEvent;
+                      setShowAddEventModal(false);
+                      setEditingEvent(null);
+                      setShowInviteModal(evt);
+                    }}
+                    className="w-full py-3 bg-gradient-to-r from-pink-500/30 to-purple-500/30 text-pink-300 rounded-xl hover:from-pink-500/40 hover:to-purple-500/40 transition flex items-center justify-center gap-2 border border-pink-500/20"
+                  >
+                    <UserPlus className="w-5 h-5" />
+                    Manage Guests ({(editingEvent.guests || []).length})
+                  </button>
+                ) : (
+                  <p className="text-slate-500 text-sm text-center py-3 bg-white/5 rounded-xl border border-dashed border-white/20">
+                    Save the event first, then invite guests
+                  </p>
+                )}
               </div>
             </div>
 

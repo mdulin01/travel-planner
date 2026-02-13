@@ -106,7 +106,7 @@ export default function GuestEventPage() {
 
     try {
       const eventRef = doc(db, 'events', eventId);
-      const updatedGuests = event.guests.map((g) =>
+      const updatedGuests = (event.guests || []).map((g) =>
         g.token === guestToken
           ? {
               ...g,
@@ -133,7 +133,7 @@ export default function GuestEventPage() {
 
     try {
       const eventRef = doc(db, 'events', eventId);
-      const updatedGuests = event.guests.map((g) =>
+      const updatedGuests = (event.guests || []).map((g) =>
         g.token === guestToken ? { ...g, note } : g
       );
       await setDoc(eventRef, { guests: updatedGuests }, { merge: true });
@@ -148,7 +148,7 @@ export default function GuestEventPage() {
 
     try {
       const eventRef = doc(db, 'events', eventId);
-      const updatedGuests = event.guests.map((g) =>
+      const updatedGuests = (event.guests || []).map((g) =>
         g.token === guestToken
           ? { ...g, plusOne: Math.max(0, Math.min(2, newCount)) }
           : g
@@ -165,7 +165,7 @@ export default function GuestEventPage() {
 
     try {
       const eventRef = doc(db, 'events', eventId);
-      const updatedLists = event.lists.map((list) =>
+      const updatedLists = (event.lists || []).map((list) =>
         list.id === listId
           ? {
               ...list,
@@ -193,7 +193,7 @@ export default function GuestEventPage() {
 
     try {
       const eventRef = doc(db, 'events', eventId);
-      const updatedLists = event.lists.map((list) =>
+      const updatedLists = (event.lists || []).map((list) =>
         list.id === listId
           ? {
               ...list,
@@ -221,7 +221,7 @@ export default function GuestEventPage() {
 
     try {
       const eventRef = doc(db, 'events', eventId);
-      const updatedLists = event.lists.map((list) =>
+      const updatedLists = (event.lists || []).map((list) =>
         list.id === listId
           ? {
               ...list,
@@ -321,20 +321,24 @@ export default function GuestEventPage() {
 
   // Generate Google Calendar link
   const generateCalendarLink = () => {
-    if (!event) return '';
+    if (!event || !event.date) return '';
 
-    const start = new Date(`${event.date}T${event.time}`);
-    const end = new Date(`${event.date}T${event.endTime}`);
+    const timeStr = event.time || '12:00';
+    const endTimeStr = event.endTime || '23:59';
+    const start = new Date(`${event.date}T${timeStr}`);
+    const end = new Date(`${event.date}T${endTimeStr}`);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return '';
 
     const startISO = start.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     const endISO = end.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
 
     const params = new URLSearchParams({
       action: 'TEMPLATE',
-      text: event.name,
+      text: event.name || 'Event',
       dates: `${startISO}/${endISO}`,
-      location: event.location,
-      details: event.description,
+      location: event.location || '',
+      details: event.description || '',
     });
 
     return `https://calendar.google.com/calendar/render?${params.toString()}`;
@@ -342,7 +346,9 @@ export default function GuestEventPage() {
 
   // Format date
   const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
+    if (!dateStr) return 'Date TBD';
+    const date = new Date(dateStr + 'T12:00:00');
+    if (isNaN(date.getTime())) return dateStr;
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
@@ -352,8 +358,12 @@ export default function GuestEventPage() {
 
   // Format time
   const formatTime = (timeStr) => {
-    const [hours, minutes] = timeStr.split(':');
+    if (!timeStr) return 'Time TBD';
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return timeStr;
+    const [hours, minutes] = parts;
     const hour = parseInt(hours);
+    if (isNaN(hour)) return timeStr;
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;

@@ -10535,7 +10535,10 @@ export default function TripPlanner() {
                   <div className="space-y-2">
                     {(showInviteModal.guests || []).map(guest => {
                       const inviteLink = `${window.location.origin}/event/${showInviteModal.id}?t=${guest.token}`;
-                      const inviteMessage = `🏳️‍🌈✨ You're Invited! ✨🏳️‍🌈\n\n${guest.name}, you're cordially summoned to:\n\n🎉 ${showInviteModal.name}\n📅 ${showInviteModal.date ? new Date(showInviteModal.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'TBD'}${showInviteModal.time ? ` at ${showInviteModal.time}` : ''}\n📍 ${showInviteModal.location || 'TBD'}\n\n${showInviteModal.description || ''}\n\nRSVP & see all the details:\n${inviteLink}\n\nHosted with love by Mike & Adam 💕`;
+                      const formattedDate = showInviteModal.date ? new Date(showInviteModal.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'TBD';
+                      const formattedTime = showInviteModal.time ? (() => { const [h,m] = showInviteModal.time.split(':'); const hr = parseInt(h); return `${hr % 12 || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`; })() : '';
+                      const inviteMessage = `🏳️‍🌈✨ You're Invited! ✨🏳️‍🌈\n\n${guest.name}, you're cordially summoned to:\n\n🎉 ${showInviteModal.name}\n📅 ${formattedDate}${formattedTime ? ` at ${formattedTime}` : ''}\n📍 ${showInviteModal.location || 'TBD'}\n\n${showInviteModal.description || ''}\n\nRSVP & see all the details:\n${inviteLink}\n\nHosted with love by Mike & Adam 💕`;
+                      const htmlEmailBody = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:500px;margin:0 auto;background:#1e293b;border-radius:16px;overflow:hidden;color:white;"><div style="height:4px;background:linear-gradient(to right,#ef4444,#eab308,#22c55e,#3b82f6,#a855f7);"></div><div style="padding:32px;text-align:center;"><div style="font-size:48px;margin-bottom:12px;">${showInviteModal.emoji || '🎉'}</div><h1 style="color:white;font-size:24px;margin:0 0 4px;">You're Invited!</h1><p style="color:#94a3b8;margin:0 0 24px;">Hey ${guest.name}!</p><h2 style="color:white;font-size:20px;margin:0 0 16px;">${showInviteModal.name}</h2><p style="color:#cbd5e1;margin:4px 0;">📅 ${formattedDate}${formattedTime ? ` at ${formattedTime}` : ''}</p><p style="color:#cbd5e1;margin:4px 0;">📍 ${showInviteModal.location || 'TBD'}</p>${showInviteModal.description ? `<p style="color:#94a3b8;margin:16px 0;font-size:14px;">${showInviteModal.description}</p>` : ''}<a href="${inviteLink}" style="display:inline-block;margin:24px 0;padding:14px 40px;background:linear-gradient(to right,#a855f7,#ec4899);color:white;text-decoration:none;border-radius:12px;font-weight:bold;font-size:16px;">RSVP Now ✨</a><p style="color:#64748b;font-size:12px;margin-top:24px;">Hosted with love by Mike &amp; Adam 💕</p></div></div>`;
 
                       return (
                         <div key={guest.id} className="bg-white/5 rounded-xl p-3">
@@ -10582,7 +10585,9 @@ export default function TripPlanner() {
                             </button>
                             {guest.email && (
                               <a
-                                href={`mailto:${guest.email}?subject=${encodeURIComponent(`You're invited: ${showInviteModal.name}`)}&body=${encodeURIComponent(inviteMessage)}`}
+                                href={`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(guest.email)}&su=${encodeURIComponent(`You're invited: ${showInviteModal.name}`)}&body=${encodeURIComponent(inviteMessage)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-500/20 text-blue-300 rounded-lg text-xs hover:bg-blue-500/30 transition"
                               >
                                 ✉️ Email

@@ -3787,24 +3787,6 @@ export default function TripPlanner() {
 
                         {!isCollapsed && (
                           <div className="px-4 pb-4">
-                            {/* Event of the Week Banner */}
-                            {eventOfWeek && (
-                              <div className="mb-3 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center gap-2">
-                                <span className="text-lg">{eventOfWeek.emoji || '🌟'}</span>
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-amber-200 font-semibold text-sm truncate block">
-                                    {eventOfWeek.name || eventOfWeek.destination || 'Event'}
-                                  </span>
-                                  <span className="text-amber-300/60 text-xs">
-                                    {eventOfWeek.date ? new Date(eventOfWeek.date + 'T12:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''}
-                                    {eventOfWeek.time ? ` · ${eventOfWeek.time}` : ''}
-                                    {eventOfWeek.dates?.start ? new Date(eventOfWeek.dates.start + 'T12:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''}
-                                  </span>
-                                </div>
-                                <span className="text-amber-300/50 text-xs font-medium uppercase tracking-wider">This Week</span>
-                              </div>
-                            )}
-
                             {/* 7-Day Grid */}
                             <div className={`grid grid-cols-7 gap-1 ${weekQuickAddDay ? 'overflow-visible pb-28' : 'overflow-x-auto'}`}>
                               {weekDays.map(day => (

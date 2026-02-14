@@ -322,10 +322,10 @@ const TripDetail = ({
 
           {/* Guest Info Banner */}
           {isGuest && (
-            <div className={`mb-6 p-4 rounded-xl border ${userCanEdit ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
+            <div className={`mb-6 p-4 rounded-xl border ${userCanEdit ? 'bg-green-500/10 border-green-500/20' : 'bg-blue-500/10 border-blue-500/20'}`}>
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                  <p className={`text-sm ${userCanEdit ? 'text-green-800' : 'text-blue-800'}`}>
+                  <p className={`text-sm ${userCanEdit ? 'text-green-300' : 'text-blue-300'}`}>
                     <strong>You're invited!</strong> {userCanEdit
                       ? 'You can view and edit trip details (flights, hotels, events).'
                       : 'You can view trip details. Contact the trip owner to request edit access.'}
@@ -339,7 +339,7 @@ const TripDetail = ({
                     <Calendar className="w-4 h-4" />
                     Add to Calendar
                   </button>
-                  <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${userCanEdit ? 'bg-green-200 text-green-700' : 'bg-blue-200 text-blue-700'}`}>
+                  <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${userCanEdit ? 'bg-green-500/20 text-green-300' : 'bg-blue-500/20 text-blue-300'}`}>
                     {userCanEdit ? '✏️ Can Edit' : '👁️ View Only'}
                   </span>
                 </div>
@@ -355,7 +355,7 @@ const TripDetail = ({
                   {type === 'flights' && <Plane className="w-6 h-6 text-indigo-500" />}
                   {type === 'hotels' && <Hotel className="w-6 h-6 text-teal-500" />}
                   {type === 'events' && <Music className="w-6 h-6 text-purple-500" />}
-                  <h3 className="text-2xl font-bold text-slate-800 capitalize">{type}</h3>
+                  <h3 className="text-2xl font-bold text-white capitalize">{type}</h3>
                 </div>
                 {canEditTrip(trip.id) && (
                   <button
@@ -368,18 +368,18 @@ const TripDetail = ({
               </div>
 
               {details[type].length === 0 ? (
-                <p className="text-slate-400 italic">No {type} added yet. Click + to add!</p>
+                <p className="text-white/50 italic">No {type} added yet. Click + to add!</p>
               ) : (
                 <div className="space-y-3">
                   {details[type].map(item => (
                     <div key={item.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl group">
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-slate-800">
+                        <div className="font-semibold text-white">
                           {type === 'flights' && (item.airline && item.flightNo ? `${item.airline} ${item.flightNo}` : item.flightNo || 'Flight')}
                           {type === 'hotels' && (item.name || 'Hotel')}
                           {type === 'events' && (item.name || 'Event')}
                         </div>
-                        <div className="text-sm text-slate-500">
+                        <div className="text-sm text-white/60">
                           {type === 'flights' && (
                             <>
                               {item.date && <span>{item.date}</span>}
@@ -403,9 +403,9 @@ const TripDetail = ({
                           )}
                         </div>
                         {item.confirmation && (
-                          <div className="text-xs text-slate-400">Conf: {item.confirmation}</div>
+                          <div className="text-xs text-white/50">Conf: {item.confirmation}</div>
                         )}
-                        <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                        <div className="text-xs text-white/50 mt-1 flex items-center gap-1">
                           <Users className="w-3 h-3" /> Added by {item.addedBy}
                         </div>
                       </div>
@@ -413,13 +413,13 @@ const TripDetail = ({
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
                           <button
                             onClick={() => setShowAddModal({ type, tripId: trip.id, editItem: item })}
-                            className="p-2 text-slate-400 hover:bg-slate-200 rounded-full transition"
+                            className="p-2 text-white/50 hover:bg-white/10 rounded-full transition"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => removeItem(trip.id, type, item.id)}
-                            className="p-2 text-red-400 hover:bg-red-50 rounded-full transition"
+                            className="p-2 text-red-400 hover:bg-red-500/10 rounded-full transition"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -437,7 +437,7 @@ const TripDetail = ({
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <Link className="w-6 h-6 text-purple-500" />
-                <h3 className="text-2xl font-bold text-slate-800">Links & Resources</h3>
+                <h3 className="text-2xl font-bold text-white">Links & Resources</h3>
               </div>
               <button
                 onClick={() => setShowLinkModal(trip.id)}
@@ -448,7 +448,7 @@ const TripDetail = ({
             </div>
 
             {(!details.links || details.links.length === 0) ? (
-              <p className="text-slate-400 italic">No links added yet. Add hotel bookings, event tickets, and more!</p>
+              <p className="text-white/50 italic">No links added yet. Add hotel bookings, event tickets, and more!</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {details.links.map(link => (
@@ -468,17 +468,17 @@ const TripDetail = ({
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-600 rounded-full capitalize">
+                            <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded-full capitalize">
                               {link.category}
                             </span>
                           </div>
-                          <div className="font-semibold text-slate-800 truncate group-hover:text-purple-600 transition">
+                          <div className="font-semibold text-white truncate group-hover:text-purple-300 transition">
                             {link.title}
                           </div>
                           {link.description && (
-                            <div className="text-sm text-slate-500 truncate">{link.description}</div>
+                            <div className="text-sm text-white/60 truncate">{link.description}</div>
                           )}
-                          <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                          <div className="text-xs text-white/50 mt-1 flex items-center gap-1">
                             <Users className="w-3 h-3" /> Added by {link.addedBy}
                           </div>
                         </div>
@@ -488,14 +488,14 @@ const TripDetail = ({
                             e.stopPropagation();
                             removeLink(trip.id, link.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:bg-red-50 rounded-full transition flex-shrink-0"
+                          className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:bg-red-500/10 rounded-full transition flex-shrink-0"
                         >
                           <X className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
                     <div className="flex items-center pr-3">
-                      <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-purple-500 transition" />
+                      <ExternalLink className="w-4 h-4 text-white/50 group-hover:text-purple-500 transition" />
                     </div>
                   </a>
                 ))}
@@ -508,9 +508,9 @@ const TripDetail = ({
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🧳</span>
-                <h3 className="text-2xl font-bold text-slate-800">Packing List</h3>
+                <h3 className="text-2xl font-bold text-white">Packing List</h3>
                 {details.packingList?.length > 0 && (
-                  <span className="text-sm text-slate-500">
+                  <span className="text-sm text-white/60">
                     ({details.packingList.filter(i => i.packed).length}/{details.packingList.length} packed)
                   </span>
                 )}
@@ -533,13 +533,13 @@ const TripDetail = ({
             </div>
 
             {(!details.packingList || details.packingList.length === 0) ? (
-              <p className="text-slate-400 italic">No items yet. Start your packing list!</p>
+              <p className="text-white/50 italic">No items yet. Start your packing list!</p>
             ) : (
               <div className="space-y-2">
                 {details.packingList.map(item => (
                   <div
                     key={item.id}
-                    className={`flex items-center justify-between p-3 rounded-xl transition ${item.packed ? 'bg-green-50' : 'bg-white/5'}`}
+                    className={`flex items-center justify-between p-3 rounded-xl transition ${item.packed ? 'bg-green-500/10' : 'bg-white/5'}`}
                   >
                     <div className="flex items-center gap-3">
                       <button
@@ -552,14 +552,14 @@ const TripDetail = ({
                           saveToFirestore(null, null, newDetails);
                         }}
                         className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${
-                          item.packed ? 'bg-green-500 border-green-500 text-white' : 'border-slate-300 hover:border-green-400'
+                          item.packed ? 'bg-green-500/100 border-green-500 text-white' : 'border-white/30 hover:border-green-400'
                         }`}
                       >
                         {item.packed && <Check className="w-4 h-4" />}
                       </button>
-                      <span className={item.packed ? 'line-through text-slate-400' : 'text-white'}>{item.item}</span>
+                      <span className={item.packed ? 'line-through text-white/50' : 'text-white'}>{item.item}</span>
                     </div>
-                    <span className="text-xs text-slate-400">{item.addedBy}</span>
+                    <span className="text-xs text-white/50">{item.addedBy}</span>
                   </div>
                 ))}
               </div>
@@ -571,7 +571,7 @@ const TripDetail = ({
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <MapPin className="w-6 h-6 text-rose-500" />
-                <h3 className="text-2xl font-bold text-slate-800">Places to Visit</h3>
+                <h3 className="text-2xl font-bold text-white">Places to Visit</h3>
               </div>
               <button
                 onClick={() => {
@@ -591,21 +591,21 @@ const TripDetail = ({
             </div>
 
             {(!details.places || details.places.length === 0) ? (
-              <p className="text-slate-400 italic">Save restaurants, bars, and activities you want to try!</p>
+              <p className="text-white/50 italic">Save restaurants, bars, and activities you want to try!</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {details.places.map(place => (
                   <div
                     key={place.id}
-                    className={`p-3 rounded-xl flex items-center justify-between transition ${place.visited ? 'bg-green-50' : 'bg-white/5'}`}
+                    className={`p-3 rounded-xl flex items-center justify-between transition ${place.visited ? 'bg-green-500/10' : 'bg-white/5'}`}
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-xl">
                         {place.type === 'restaurant' ? '🍽️' : place.type === 'bar' ? '🍸' : place.type === 'shop' ? '🛍️' : '🎯'}
                       </span>
                       <div>
-                        <div className={`font-medium ${place.visited ? 'text-green-700 line-through' : 'text-white'}`}>{place.name}</div>
-                        <div className="text-xs text-slate-400">{place.addedBy}</div>
+                        <div className={`font-medium ${place.visited ? 'text-green-300 line-through' : 'text-white'}`}>{place.name}</div>
+                        <div className="text-xs text-white/50">{place.addedBy}</div>
                       </div>
                     </div>
                     <button
@@ -618,7 +618,7 @@ const TripDetail = ({
                         saveToFirestore(null, null, newDetails);
                       }}
                       className={`px-3 py-1 rounded-full text-xs font-medium transition ${
-                        place.visited ? 'bg-green-200 text-green-700' : 'bg-slate-200 text-slate-600 hover:bg-green-200'
+                        place.visited ? 'bg-green-500/20 text-green-300' : 'bg-white/10 text-white/60 hover:bg-green-500/20'
                       }`}
                     >
                       {place.visited ? '✓ Visited' : 'Mark visited'}
@@ -634,7 +634,7 @@ const TripDetail = ({
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">📸</span>
-                <h3 className="text-2xl font-bold text-slate-800">Photo Memories</h3>
+                <h3 className="text-2xl font-bold text-white">Photo Memories</h3>
               </div>
               <button
                 onClick={() => {
@@ -654,7 +654,7 @@ const TripDetail = ({
             </div>
 
             {(!details.photos || details.photos.length === 0) ? (
-              <p className="text-slate-400 italic">Add photos from your trip! Paste image URLs to save memories.</p>
+              <p className="text-white/50 italic">Add photos from your trip! Paste image URLs to save memories.</p>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {details.photos.map(photo => (
@@ -686,7 +686,7 @@ const TripDetail = ({
           <div className="bg-white/10 rounded-3xl p-6 mb-6 border border-white/20">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-2xl">📝</span>
-              <h3 className="text-2xl font-bold text-slate-800">Shared Notes</h3>
+              <h3 className="text-2xl font-bold text-white">Shared Notes</h3>
             </div>
             <textarea
               value={details.notes || ''}

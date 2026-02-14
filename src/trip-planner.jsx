@@ -3777,17 +3777,20 @@ export default function TripPlanner() {
                         >
                           <div className="flex items-center gap-2">
                             <span className="text-lg">📅</span>
-                            <span className="text-white font-bold text-lg">Week Ahead</span>
-                            <span className="text-slate-400 text-sm ml-1">
-                              {weekDays[0].month}/{weekDays[0].dayNum} – {weekDays[6].month}/{weekDays[6].dayNum}
-                            </span>
+                            <span className="text-white font-bold text-lg">{showFullMonthCalendar ? 'Calendar' : 'Week Ahead'}</span>
+                            {!showFullMonthCalendar && (
+                              <span className="text-slate-400 text-sm ml-1">
+                                {weekDays[0].month}/{weekDays[0].dayNum} – {weekDays[6].month}/{weekDays[6].dayNum}
+                              </span>
+                            )}
                           </div>
                           <svg className={`w-5 h-5 text-slate-400 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                         </button>
 
                         {!isCollapsed && (
                           <div className="px-4 pb-4">
-                            {/* 7-Day Grid */}
+                            {/* 7-Day Grid (hidden when month is shown) */}
+                            {!showFullMonthCalendar && (
                             <div className={`grid grid-cols-7 gap-1 ${weekQuickAddDay ? 'overflow-visible pb-28' : 'overflow-x-auto'}`}>
                               {weekDays.map(day => (
                                 <div
@@ -3859,6 +3862,7 @@ export default function TripPlanner() {
                                 </div>
                               ))}
                             </div>
+                            )}
 
                             {/* Toggle & Google Calendar controls */}
                             <div className="flex items-center justify-between mt-3 gap-2">
@@ -11359,6 +11363,15 @@ export default function TripPlanner() {
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[89]" onClick={() => setShowAddNewMenu(false)} />
               <div className="absolute top-16 left-0 z-[91] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
                 style={{ animation: 'fabGridIn 0.15s ease-out both' }}>
+                {/* Randomizer bar */}
+                <button
+                  onClick={() => { setShowAddNewMenu(false); setShowRandomExperience(true); }}
+                  className="w-full mb-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/30 to-orange-500/30 border border-amber-500/30 hover:from-amber-500/40 hover:to-orange-500/40 transition active:scale-95 flex items-center justify-center gap-2"
+                  style={{ animation: 'fabItemIn 0.12s ease-out 0s both' }}
+                >
+                  <span className="text-lg">🎲</span>
+                  <span className="text-sm font-semibold text-amber-200">Randomizer</span>
+                </button>
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     { action: () => setShowAddTaskModal('create'), icon: '✅', label: 'Task', gradient: 'from-blue-400 to-indigo-500' },
@@ -11396,6 +11409,15 @@ export default function TripPlanner() {
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[99]" onClick={() => setShowAddNewMenu(false)} />
               <div className="absolute bottom-full left-1/2 mb-[24px] z-[101] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-2xl p-4 shadow-2xl w-[240px]"
                 style={{ animation: 'fabGridUp 0.2s cubic-bezier(0.16,1,0.3,1) both', transformOrigin: 'bottom center' }}>
+                {/* Randomizer bar */}
+                <button
+                  onClick={() => { setShowAddNewMenu(false); setShowRandomExperience(true); }}
+                  className="w-full mb-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/30 to-orange-500/30 border border-amber-500/30 hover:from-amber-500/40 hover:to-orange-500/40 transition active:scale-95 flex items-center justify-center gap-2"
+                  style={{ animation: 'fabItemUp 0.25s cubic-bezier(0.16,1,0.3,1) 0s both' }}
+                >
+                  <span className="text-lg">🎲</span>
+                  <span className="text-sm font-semibold text-amber-200">Randomizer</span>
+                </button>
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     { action: () => setShowAddTaskModal('create'), icon: '✅', label: 'Task', gradient: 'from-blue-400 to-indigo-500' },

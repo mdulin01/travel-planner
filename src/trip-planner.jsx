@@ -1098,7 +1098,7 @@ export default function TripPlanner() {
   const [googleCalendarEvents, setGoogleCalendarEvents] = useState([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [showImportModal, setShowImportModal] = useState(null); // Google Calendar event to import
-  const [importSettings, setImportSettings] = useState({ type: 'event', color: 'from-blue-400 to-indigo-500', customName: '' });
+  const [importSettings, setImportSettings] = useState({ type: 'event', color: 'from-blue-400 to-indigo-500', customName: '', eventType: 'parties' });
   const [calendarViewMonth, setCalendarViewMonth] = useState(new Date()); // Month for calendar section view
   const [availableCalendars, setAvailableCalendars] = useState([]); // List of user's calendars
   const [selectedCalendarId, setSelectedCalendarId] = useState('primary'); // Selected calendar to fetch from
@@ -2300,19 +2300,21 @@ export default function TripPlanner() {
       saveToFirestore([...trips, newTrip], wishlist, tripDetails);
       showToast(`Added "${eventName}" as a trip!`, 'success');
     } else if (type === 'event') {
+      const eventTypeEmojis = { parties: '🎉', travel: '✈️', datenight: '🥂', concert: '🎵', fitness: '🏆', pride: '🏳️‍🌈', karaoke: '🎤' };
       const newEvent = {
         id: `event-${Date.now()}`,
         name: eventName,
-        emoji: '🎉',
+        emoji: eventTypeEmojis[settings.eventType] || '🎉',
         date: googleEvent.start.split('T')[0],
         time: googleEvent.start.includes('T') ? googleEvent.start.split('T')[1].substring(0, 5) : '',
         location: googleEvent.location,
         description: googleEvent.description,
         color: color,
+        eventType: settings.eventType || 'parties',
         guests: [],
         tasks: [],
         photos: [],
-        coverImage: '', // Cover image like trips
+        coverImage: '',
       };
       setPartyEvents(prev => [...prev, newEvent]);
       savePartyEventsToFirestore([...partyEvents, newEvent]);
@@ -2485,6 +2487,80 @@ export default function TripPlanner() {
       showToast('Failed to save event. Please try again.', 'error');
     }
   }, [user, currentUser, showToast, saveEventDoc]);
+
+  // ========== AUTO-CREATE MEMORIES FROM PAST EVENTS ==========
+  const autoMemoriesCreatedRef = useRef(false);
+
+  useEffect(() => {
+    if (dataLoading || autoMemoriesCreatedRef.current) return;
+    if (!trips.length && !partyEvents.length) return;
+
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const newMemories = [];
+
+    // Check past trips
+    trips.forEach(trip => {
+      if (!trip.dates?.end || trip.isPlanning) return;
+      if (trip.dates.end >= todayStr) return; // not past yet
+      // Check if memory already exists for this trip
+      const alreadyExists = memories.some(m => m.sourceId === trip.id && m.sourceType === 'trip');
+      if (alreadyExists) return;
+
+      const photos = tripDetails[trip.id]?.photos?.map(p => p.url || p).filter(Boolean) || [];
+      const coverImg = trip.coverImage;
+      const allImages = coverImg ? [coverImg, ...photos] : photos;
+
+      newMemories.push({
+        id: `memory-auto-${trip.id}-${Date.now()}`,
+        title: trip.destination,
+        date: trip.dates.end,
+        category: 'travel',
+        icon: trip.emoji || '✈️',
+        location: trip.destination,
+        description: `Our trip to ${trip.destination}`,
+        images: allImages,
+        image: allImages[0] || '',
+        sourceType: 'trip',
+        sourceId: trip.id,
+        autoCreated: true,
+      });
+    });
+
+    // Check past events
+    partyEvents.forEach(event => {
+      if (!event.date || event.date >= todayStr) return;
+      const alreadyExists = memories.some(m => m.sourceId === event.id && m.sourceType === 'event');
+      if (alreadyExists) return;
+
+      const eventImages = event.images || [];
+      const coverImg = event.coverImage;
+      const allImages = coverImg ? [coverImg, ...eventImages] : eventImages;
+
+      newMemories.push({
+        id: `memory-auto-${event.id}-${Date.now()}`,
+        title: event.name,
+        date: event.date,
+        category: event.eventType || 'parties',
+        icon: event.emoji || '🎉',
+        location: event.location || '',
+        description: event.description || '',
+        images: allImages,
+        image: allImages[0] || '',
+        sourceType: 'event',
+        sourceId: event.id,
+        autoCreated: true,
+      });
+    });
+
+    if (newMemories.length > 0) {
+      const updatedMemories = [...memories, ...newMemories];
+      setMemories(updatedMemories);
+      saveMemoriesToFirestore(updatedMemories);
+    }
+
+    autoMemoriesCreatedRef.current = true;
+  }, [dataLoading, trips, partyEvents, memories, tripDetails, saveMemoriesToFirestore]);
 
   // ========== SHARED HUB SAVE & CRUD ==========
   const hubDataLoadedRef = useRef(false);
@@ -3387,52 +3463,52 @@ export default function TripPlanner() {
                 >
                   💕
                 </button>
-                {/* Mobile section indicator - clickable dropdown */}
-                <span className="md:hidden text-white/40 text-sm">•</span>
-                <div className="md:hidden relative">
-                  <button
-                    onClick={() => setShowSectionDropdown(!showSectionDropdown)}
-                    className="text-sm font-semibold text-white/80 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/10 transition active:scale-95"
-                  >
-                    {activeSection === 'home' && <><span>⚛️</span> Hub</>}
-                    {activeSection === 'fitness' && <><span>🏃</span> Fitness</>}
-                    {activeSection === 'events' && <><span>📅</span> Events</>}
-                    {activeSection === 'memories' && <><span>💝</span> Memories</>}
-                    <span className={`text-white/40 text-xs ml-0.5 transition-transform ${showSectionDropdown ? 'rotate-180' : ''}`}>▼</span>
-                  </button>
-                  {showSectionDropdown && (
-                    <>
-                      <div className="fixed inset-0 z-[60]" onClick={() => setShowSectionDropdown(false)} />
-                      <div className="absolute top-full left-0 mt-1 z-[61] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-xl py-1 shadow-2xl min-w-[140px]">
-                        {[
-                          { id: 'home', emoji: '⚛️', label: 'Hub' },
-                          { id: 'fitness', emoji: '🏃', label: 'Fitness' },
-                          { id: 'events', emoji: '📅', label: 'Events' },
-                          { id: 'memories', emoji: '💝', label: 'Memories' },
-                        ].map(section => (
-                          <button
-                            key={section.id}
-                            onClick={() => {
-                              setActiveSection(section.id);
-                              if (section.id === 'events') setTravelViewMode('main');
-                              if (section.id === 'home') setHubSubView('home');
-                              setShowSectionDropdown(false);
-                            }}
-                            className={`w-full text-left px-4 py-2.5 flex items-center gap-2 text-sm transition ${
-                              activeSection === section.id
-                                ? 'text-white bg-white/10 font-semibold'
-                                : 'text-white/70 hover:bg-white/5'
-                            }`}
-                          >
-                            <span>{section.emoji}</span>
-                            <span>{section.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
               </div>
+            </div>
+
+            {/* Mobile section indicator - centered */}
+            <div className="md:hidden absolute left-1/2 -translate-x-1/2">
+              <button
+                onClick={() => setShowSectionDropdown(!showSectionDropdown)}
+                className="text-sm font-semibold text-white/80 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/10 transition active:scale-95"
+              >
+                {activeSection === 'home' && <><span>⚛️</span> Hub</>}
+                {activeSection === 'fitness' && <><span>🏃</span> Fitness</>}
+                {activeSection === 'events' && <><span>📅</span> Events</>}
+                {activeSection === 'memories' && <><span>💝</span> Memories</>}
+                <span className={`text-white/40 text-xs ml-0.5 transition-transform ${showSectionDropdown ? 'rotate-180' : ''}`}>▼</span>
+              </button>
+              {showSectionDropdown && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setShowSectionDropdown(false)} />
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-[61] bg-slate-800/95 backdrop-blur-md border border-white/15 rounded-xl py-1 shadow-2xl min-w-[140px]">
+                    {[
+                      { id: 'home', emoji: '⚛️', label: 'Hub' },
+                      { id: 'fitness', emoji: '🏃', label: 'Fitness' },
+                      { id: 'events', emoji: '📅', label: 'Events' },
+                      { id: 'memories', emoji: '💝', label: 'Memories' },
+                    ].map(section => (
+                      <button
+                        key={section.id}
+                        onClick={() => {
+                          setActiveSection(section.id);
+                          if (section.id === 'events') setTravelViewMode('main');
+                          if (section.id === 'home') setHubSubView('home');
+                          setShowSectionDropdown(false);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 flex items-center gap-2 text-sm transition ${
+                          activeSection === section.id
+                            ? 'text-white bg-white/10 font-semibold'
+                            : 'text-white/70 hover:bg-white/5'
+                        }`}
+                      >
+                        <span>{section.emoji}</span>
+                        <span>{section.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Section Title - Centered on desktop, below header on mobile */}
@@ -3948,16 +4024,30 @@ export default function TripPlanner() {
                                         const en = e.end?.split('T')[0] || s;
                                         return s && dateStr >= s && dateStr <= en;
                                       });
+                                      const hasTask = sharedTasks.some(t => t.status !== 'done' && t.dueDate === dateStr);
+                                      const hasSocial = sharedSocial.some(s => s.status !== 'done' && s.date === dateStr);
+                                      const hasFitness = Object.values(fitnessTrainingPlans || {}).some(weeks => {
+                                        if (!Array.isArray(weeks)) return false;
+                                        return weeks.some(week => {
+                                          const runs = week.runs || [];
+                                          const cross = week.crossTraining || [];
+                                          return [...runs, ...cross].some(w => w.date === dateStr);
+                                        });
+                                      });
+                                      const anyDot = hasTrip || hasEvent || hasGcal || hasTask || hasSocial || hasFitness;
                                       cells.push(
                                         <div key={d} className={`text-center py-1 rounded-md text-xs relative ${
                                           isToday2 ? 'bg-purple-500/30 text-white font-bold' : 'text-white/60'
                                         } ${hasTrip ? 'ring-1 ring-teal-400/50' : ''}`}>
                                           {d}
-                                          {(hasTrip || hasEvent || hasGcal) && (
+                                          {anyDot && (
                                             <div className="flex justify-center gap-0.5 mt-0.5">
                                               {hasTrip && <div className="w-1 h-1 rounded-full bg-teal-400" />}
                                               {hasEvent && <div className="w-1 h-1 rounded-full bg-amber-400" />}
                                               {hasGcal && <div className="w-1 h-1 rounded-full bg-blue-400" />}
+                                              {hasTask && <div className="w-1 h-1 rounded-full bg-green-400" />}
+                                              {hasSocial && <div className="w-1 h-1 rounded-full bg-pink-400" />}
+                                              {hasFitness && <div className="w-1 h-1 rounded-full bg-orange-400" />}
                                             </div>
                                           )}
                                         </div>
@@ -3967,10 +4057,13 @@ export default function TripPlanner() {
                                   })()}
                                 </div>
                                 {/* Legend */}
-                                <div className="flex items-center gap-4 mt-3 text-[10px] text-white/40">
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-[10px] text-white/40">
                                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal-400" /> Trips</span>
                                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" /> Events</span>
                                   {calendarConnected && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400" /> Google</span>}
+                                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400" /> Tasks</span>
+                                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-400" /> Social</span>
+                                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-400" /> Fitness</span>
                                 </div>
 
                                 {/* Google Calendar Events — import list */}
@@ -7906,6 +7999,34 @@ export default function TripPlanner() {
                                 <ExternalLink className="w-3 h-3" /> View more
                               </a>
                             )}
+                            {/* Source link for auto-created memories */}
+                            {event.memory?.sourceType === 'trip' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const srcTrip = trips.find(t => t.id === event.memory.sourceId);
+                                  if (srcTrip) { setSelectedTrip(srcTrip); setActiveSection('events'); }
+                                }}
+                                className="mt-2 text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1 justify-center transition"
+                              >
+                                ✈️ View Trip →
+                              </button>
+                            )}
+                            {event.memory?.sourceType === 'event' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const srcEvent = partyEvents.find(ev => ev.id === event.memory.sourceId);
+                                  if (srcEvent) { setSelectedPartyEvent(srcEvent); setActiveSection('events'); }
+                                }}
+                                className="mt-2 text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 justify-center transition"
+                              >
+                                🎉 View Event →
+                              </button>
+                            )}
+                            {event.memory?.autoCreated && (
+                              <div className="mt-1 text-[10px] text-white/30 text-center">Auto-created from {event.memory.sourceType}</div>
+                            )}
                           </div>
                         </div>
                         <div className="w-2/12 flex justify-center">
@@ -11304,6 +11425,35 @@ export default function TripPlanner() {
                   ))}
                 </div>
               </div>
+
+              {/* Event Type Selection - only when importing as Event */}
+              {importSettings.type === 'event' && (
+                <div className="mb-6">
+                  <label className="text-white/70 text-sm font-medium mb-3 block">Event type:</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: 'parties', emoji: '🎉', label: 'Party' },
+                      { id: 'datenight', emoji: '🥂', label: 'Date' },
+                      { id: 'concert', emoji: '🎵', label: 'Show' },
+                      { id: 'fitness', emoji: '🏆', label: 'Fitness' },
+                      { id: 'pride', emoji: '🏳️‍🌈', label: 'Pride' },
+                      { id: 'karaoke', emoji: '🎤', label: 'Karaoke' },
+                    ].map(type => (
+                      <button
+                        key={type.id}
+                        onClick={() => setImportSettings(prev => ({ ...prev, eventType: type.id }))}
+                        className={`px-3 py-2 rounded-xl border transition text-sm ${
+                          importSettings.eventType === type.id
+                            ? 'border-white bg-white/15 text-white font-semibold'
+                            : 'border-white/20 bg-white/5 text-white/60 hover:border-white/40'
+                        }`}
+                      >
+                        {type.emoji} {type.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Color Selection */}
               <div className="mb-6">

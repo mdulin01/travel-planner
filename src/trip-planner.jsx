@@ -1088,7 +1088,8 @@ export default function TripPlanner() {
   const [showOpenDateModal, setShowOpenDateModal] = useState(false);
   const [showCompanionsModal, setShowCompanionsModal] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState(null);
-  const [currentMonth, setCurrentMonth] = useState(new Date(2026, 2, 1)); // March 2026
+  const [currentMonth, setCurrentMonth] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState(null); // dateStr for day detail modal
   const [showTripMenu, setShowTripMenu] = useState(null); // trip id for menu
   const [showColorPicker, setShowColorPicker] = useState(null); // trip id for color picker
   const [showEmojiEditor, setShowEmojiEditor] = useState(null); // trip id for emoji editor
@@ -4000,7 +4001,7 @@ export default function TripPlanner() {
                                   </button>
                                 </div>
                                 {/* Month grid */}
-                                <div className="grid grid-cols-7 gap-px">
+                                <div className="grid grid-cols-7 gap-1">
                                   {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => (
                                     <div key={d} className="text-center text-[10px] text-white/40 font-medium pb-1">{d}</div>
                                   ))}
@@ -4017,15 +4018,20 @@ export default function TripPlanner() {
                                       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                                       const todayStr2 = new Date().toISOString().split('T')[0];
                                       const isToday2 = dateStr === todayStr2;
-                                      const hasTrip = trips.some(t => t.dates?.start && t.dates?.end && dateStr >= t.dates.start && dateStr <= t.dates.end);
-                                      const hasEvent = partyEvents.some(e => e.date === dateStr);
-                                      const hasGcal = (googleCalendarEvents || []).some(e => {
+                                      const dayTrips = trips.filter(t => t.dates?.start && t.dates?.end && dateStr >= t.dates.start && dateStr <= t.dates.end);
+                                      const dayEvents = partyEvents.filter(e => e.date === dateStr);
+                                      const dayGcal = (googleCalendarEvents || []).filter(e => {
                                         const s = e.start?.split('T')[0];
                                         const en = e.end?.split('T')[0] || s;
                                         return s && dateStr >= s && dateStr <= en;
                                       });
-                                      const hasTask = sharedTasks.some(t => t.status !== 'done' && t.dueDate === dateStr);
-                                      const hasSocial = sharedSocial.some(s => s.status !== 'done' && s.date === dateStr);
+                                      const dayTasks = sharedTasks.filter(t => t.status !== 'done' && t.dueDate === dateStr);
+                                      const daySocial = sharedSocial.filter(s => s.status !== 'done' && s.date === dateStr);
+                                      const hasTrip = dayTrips.length > 0;
+                                      const hasEvent = dayEvents.length > 0;
+                                      const hasGcal = dayGcal.length > 0;
+                                      const hasTask = dayTasks.length > 0;
+                                      const hasSocial = daySocial.length > 0;
                                       const hasFitness = Object.values(fitnessTrainingPlans || {}).some(weeks => {
                                         if (!Array.isArray(weeks)) return false;
                                         return weeks.some(week => {
@@ -4034,12 +4040,17 @@ export default function TripPlanner() {
                                           return [...runs, ...cross].some(w => w.date === dateStr);
                                         });
                                       });
+                                      const totalItems = dayTrips.length + dayEvents.length + dayGcal.length + dayTasks.length + daySocial.length;
                                       const anyDot = hasTrip || hasEvent || hasGcal || hasTask || hasSocial || hasFitness;
                                       cells.push(
-                                        <div key={d} className={`text-center py-1 rounded-md text-xs relative ${
-                                          isToday2 ? 'bg-purple-500/30 text-white font-bold' : 'text-white/60'
-                                        } ${hasTrip ? 'ring-1 ring-teal-400/50' : ''}`}>
-                                          {d}
+                                        <button
+                                          key={d}
+                                          onClick={() => setSelectedCalendarDay(dateStr)}
+                                          className={`text-center py-1.5 rounded-lg text-xs relative transition cursor-pointer hover:bg-white/10 active:scale-95 min-h-[36px] ${
+                                            isToday2 ? 'bg-purple-500/30 text-white font-bold ring-1 ring-purple-400/50' : 'text-white/60 bg-white/[0.03]'
+                                          } ${hasTrip ? 'ring-1 ring-teal-400/40' : ''} ${selectedCalendarDay === dateStr ? 'ring-2 ring-white/50 bg-white/15' : ''}`}
+                                        >
+                                          <div className="text-[11px]">{d}</div>
                                           {anyDot && (
                                             <div className="flex justify-center gap-0.5 mt-0.5">
                                               {hasTrip && <div className="w-1 h-1 rounded-full bg-teal-400" />}
@@ -4050,7 +4061,10 @@ export default function TripPlanner() {
                                               {hasFitness && <div className="w-1 h-1 rounded-full bg-orange-400" />}
                                             </div>
                                           )}
-                                        </div>
+                                          {totalItems > 0 && !anyDot && (
+                                            <div className="w-1 h-1 rounded-full bg-white/30 mx-auto mt-0.5" />
+                                          )}
+                                        </button>
                                       );
                                     }
                                     return cells;
@@ -11485,6 +11499,149 @@ export default function TripPlanner() {
                   className={`flex-1 px-4 py-3 bg-gradient-to-r ${importSettings.color} text-white font-semibold rounded-xl hover:opacity-90 transition`}
                 >
                   Import as {importSettings.type === 'travel' ? 'Trip' : importSettings.type === 'event' ? 'Event' : 'Memory'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Day Detail Modal */}
+      {selectedCalendarDay && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end md:items-center justify-center" onClick={() => setSelectedCalendarDay(null)}>
+          <div className="bg-slate-800 rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[80dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-white">
+                  {(() => {
+                    const d = parseLocalDate(selectedCalendarDay);
+                    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+                  })()}
+                </h2>
+                <button onClick={() => setSelectedCalendarDay(null)} className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-5 space-y-3">
+              {/* Trips on this day */}
+              {trips.filter(t => t.dates?.start && t.dates?.end && selectedCalendarDay >= t.dates.start && selectedCalendarDay <= t.dates.end).map(trip => (
+                <button key={trip.id} onClick={() => { setSelectedTrip(trip); setActiveSection('events'); setSelectedCalendarDay(null); }}
+                  className="w-full flex items-center gap-3 p-3 bg-teal-500/10 border border-teal-500/20 rounded-xl hover:bg-teal-500/20 transition text-left">
+                  <span className="text-2xl">{trip.emoji || '✈️'}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-white truncate">{trip.destination}</div>
+                    <div className="text-[10px] text-teal-300">{trip.dates.start} → {trip.dates.end}</div>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-teal-400 shrink-0" />
+                </button>
+              ))}
+
+              {/* Events on this day */}
+              {partyEvents.filter(e => e.date === selectedCalendarDay).map(event => (
+                <button key={event.id} onClick={() => { setSelectedPartyEvent(event); setActiveSection('events'); setSelectedCalendarDay(null); }}
+                  className="w-full flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl hover:bg-amber-500/20 transition text-left">
+                  <span className="text-2xl">{event.emoji || '🎉'}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-white truncate">{event.name}</div>
+                    <div className="text-[10px] text-amber-300">{event.time ? `${event.time}` : 'All day'}{event.location ? ` · ${event.location}` : ''}</div>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                </button>
+              ))}
+
+              {/* Google Calendar events on this day */}
+              {(googleCalendarEvents || []).filter(e => {
+                const s = e.start?.split('T')[0];
+                const en = e.end?.split('T')[0] || s;
+                return s && selectedCalendarDay >= s && selectedCalendarDay <= en;
+              }).map(event => (
+                <div key={event.id} className="flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                  <span className="text-2xl">📅</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-white truncate">{event.title}</div>
+                    <div className="text-[10px] text-blue-300">
+                      {event.allDay ? 'All day' : new Date(event.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      {event.location ? ` · ${event.location}` : ''}
+                    </div>
+                  </div>
+                  <button onClick={() => { setImportSettings(prev => ({ ...prev, customName: '' })); setShowImportModal(event); setSelectedCalendarDay(null); }}
+                    className="text-xs text-blue-400 hover:text-blue-300 font-medium px-2 py-1 rounded-lg hover:bg-blue-500/10 transition shrink-0">
+                    Import
+                  </button>
+                </div>
+              ))}
+
+              {/* Tasks due this day */}
+              {sharedTasks.filter(t => t.status !== 'done' && t.dueDate === selectedCalendarDay).map(task => (
+                <div key={task.id} className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                  <span className="text-2xl">✅</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-white truncate">{task.title}</div>
+                    <div className="text-[10px] text-green-300">Task · {task.assignee || 'Unassigned'}</div>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
+                </div>
+              ))}
+
+              {/* Social on this day */}
+              {sharedSocial.filter(s => s.status !== 'done' && s.date === selectedCalendarDay).map(social => (
+                <div key={social.id} className="flex items-center gap-3 p-3 bg-pink-500/10 border border-pink-500/20 rounded-xl">
+                  <span className="text-2xl">👥</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-white truncate">{social.person}</div>
+                    <div className="text-[10px] text-pink-300">{social.type || 'Social'}</div>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-pink-400 shrink-0" />
+                </div>
+              ))}
+
+              {/* Fitness on this day */}
+              {Object.entries(fitnessTrainingPlans || {}).flatMap(([eventId, weeks]) => {
+                if (!Array.isArray(weeks)) return [];
+                return weeks.flatMap(week =>
+                  [...(week.runs || []), ...(week.crossTraining || [])].filter(w => w.date === selectedCalendarDay).map(workout => ({
+                    ...workout, eventId, key: `${eventId}-${workout.date}-${workout.type || workout.activity || 'workout'}`
+                  }))
+                );
+              }).map(workout => (
+                <div key={workout.key} className="flex items-center gap-3 p-3 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                  <span className="text-2xl">🏃</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-white truncate">{workout.type || workout.activity || 'Workout'}</div>
+                    <div className="text-[10px] text-orange-300">{workout.distance ? `${workout.distance} mi` : ''}{workout.duration ? ` · ${workout.duration}` : ''}</div>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-orange-400 shrink-0" />
+                </div>
+              ))}
+
+              {/* Empty state */}
+              {(() => {
+                const dayTrips = trips.filter(t => t.dates?.start && t.dates?.end && selectedCalendarDay >= t.dates.start && selectedCalendarDay <= t.dates.end);
+                const dayEvents = partyEvents.filter(e => e.date === selectedCalendarDay);
+                const dayGcal = (googleCalendarEvents || []).filter(e => { const s = e.start?.split('T')[0]; const en = e.end?.split('T')[0] || s; return s && selectedCalendarDay >= s && selectedCalendarDay <= en; });
+                const dayTasks = sharedTasks.filter(t => t.status !== 'done' && t.dueDate === selectedCalendarDay);
+                const daySocial = sharedSocial.filter(s => s.status !== 'done' && s.date === selectedCalendarDay);
+                const total = dayTrips.length + dayEvents.length + dayGcal.length + dayTasks.length + daySocial.length;
+                return total === 0 ? (
+                  <div className="text-center py-6 text-white/40">
+                    <div className="text-3xl mb-2">📭</div>
+                    <p className="text-sm">Nothing scheduled</p>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Add Event button */}
+              <div className="pt-2 border-t border-white/10">
+                <button
+                  onClick={() => {
+                    setNewEventData(prev => ({ ...prev, date: selectedCalendarDay, name: '', emoji: '🎉', time: '18:00', endTime: '22:00', location: '', description: '', eventType: 'parties' }));
+                    setShowAddEventModal(true);
+                    setSelectedCalendarDay(null);
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 rounded-xl text-sm font-semibold text-amber-200 hover:from-amber-500/30 hover:to-orange-500/30 transition active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Add Event on This Day
                 </button>
               </div>
             </div>

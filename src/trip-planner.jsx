@@ -26,6 +26,7 @@ import CompanionsModal from './components/CompanionsModal';
 import MyProfileModal from './components/MyProfileModal';
 import TripDetail from './components/TripDetail';
 import BuildInfo from './components/BuildInfo';
+import PhotoLightbox from './components/PhotoLightbox';
 
 // Hooks
 import { useSharedHub } from './hooks/useSharedHub';
@@ -645,6 +646,11 @@ export default function TripPlanner() {
     return images[Math.abs(hash) % images.length];
   };
 
+  // Open photo lightbox
+  const openLightbox = useCallback((images, index = 0) => {
+    if (images && images.length > 0) setLightbox({ images, index });
+  }, []);
+
   // Get all photos from all memories for hero carousel
   const getAllMemoryPhotos = useCallback(() => {
     return memories.flatMap(memory => getMemoryImages(memory)).filter(Boolean);
@@ -970,6 +976,28 @@ export default function TripPlanner() {
       // Save the download URL (not base64) to training week
       const photos = [...(existingPhotos || []), { id: timestamp, url: downloadURL, addedAt: new Date().toISOString() }];
       await updateTrainingWeek(eventId, weekId, { photos });
+
+      // Auto-sync to memories if not already there
+      const alreadyInMemories = memories.some(m => m.autoSynced && m.images?.includes(downloadURL));
+      if (!alreadyInMemories) {
+        const fitEvent = fitnessEvents.find(e => e.id === eventId);
+        const plan = fitnessTrainingPlans[eventId];
+        const week = plan?.find(w => w.id === weekId);
+        const eventName = fitEvent?.name || 'Training';
+        const weekNum = week?.weekNumber || '';
+        const newMemory = {
+          id: `fitness-auto-${timestamp}`,
+          category: 'fitness',
+          date: week?.startDate || new Date().toISOString().split('T')[0],
+          title: `${eventName}${weekNum ? ` - Week ${weekNum}` : ''} Photo`,
+          images: [downloadURL],
+          autoSynced: true,
+          createdAt: new Date().toISOString()
+        };
+        setMemories(prev => [...prev, newMemory]);
+        saveMemoriesToFirestore([...memories, newMemory]);
+      }
+
       showToast('Photo added!', 'success');
     } catch (error) {
       console.error('Fitness week photo upload failed:', error);
@@ -1091,6 +1119,7 @@ export default function TripPlanner() {
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(null); // dateStr for day detail modal
+  const [lightbox, setLightbox] = useState(null); // { images: [], index: 0 } for photo lightbox
   const [showTripMenu, setShowTripMenu] = useState(null); // trip id for menu
   const [showColorPicker, setShowColorPicker] = useState(null); // trip id for color picker
   const [showEmojiEditor, setShowEmojiEditor] = useState(null); // trip id for emoji editor
@@ -3890,7 +3919,8 @@ export default function TripPlanner() {
                               {weekDays.map(day => (
                                 <div
                                   key={day.date}
-                                  className={`rounded-xl p-1.5 min-h-[100px] flex flex-col ${
+                                  onClick={() => setSelectedCalendarDay(day.date)}
+                                  className={`rounded-xl p-1.5 min-h-[100px] flex flex-col cursor-pointer hover:bg-white/10 transition ${
                                     day.isToday
                                       ? 'bg-purple-500/15 border border-purple-400/30 ring-1 ring-purple-400/20'
                                       : 'bg-white/5 border border-white/5'
@@ -5375,10 +5405,10 @@ export default function TripPlanner() {
                                 >
                                   {weekPhotos.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mb-2">
-                                      {weekPhotos.map(photo => (
+                                      {weekPhotos.map((photo, photoIdx) => (
                                         <div key={photo.id} className="relative group/photo">
-                                          <img src={photo.url} alt="" className="w-20 h-20 rounded-lg object-cover border border-white/10" />
-                                          <button onClick={() => handleWeekPhotoRemove(selectedFitnessEvent.id, week.id, weekPhotos, photo.id)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition"><X className="w-3 h-3 text-white" /></button>
+                                          <img src={photo.url} alt="" className="w-20 h-20 rounded-lg object-cover border border-white/10 cursor-pointer" onClick={() => openLightbox(weekPhotos.map(p => p.url), photoIdx)} />
+                                          <button onClick={(e) => { e.stopPropagation(); handleWeekPhotoRemove(selectedFitnessEvent.id, week.id, weekPhotos, photo.id); }} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition"><X className="w-3 h-3 text-white" /></button>
                                         </div>
                                       ))}
                                     </div>
@@ -6400,7 +6430,7 @@ export default function TripPlanner() {
                     {(selectedPartyEvent.images || []).length > 0 ? (
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
                         {(selectedPartyEvent.images || []).map((img, idx) => (
-                          <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden">
+                          <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden cursor-pointer" onClick={() => openLightbox(selectedPartyEvent.images, idx)}>
                             <img src={img} alt={`Event photo ${idx + 1}`} className="w-full h-full object-cover" />
                             {isOwner && (
                               <button
@@ -7999,8 +8029,9 @@ export default function TripPlanner() {
                               }
 
                               // Fallback to image
+                              const allImgs = event.memory ? getMemoryImages(event.memory) : (imageUrl ? [imageUrl] : []);
                               return imageUrl ? (
-                                <div className="mb-3 -mx-2 -mt-2 overflow-hidden rounded-lg">
+                                <div className="mb-3 -mx-2 -mt-2 overflow-hidden rounded-lg cursor-pointer" onClick={(e) => { e.stopPropagation(); openLightbox(allImgs, 0); }}>
                                   <img
                                     src={imageUrl}
                                     alt=""
@@ -8143,6 +8174,7 @@ export default function TripPlanner() {
                     // Get memories by category
                     const getMemoriesByCategory = (cat) => memories.filter(m => m.category === cat).map(m => ({
                       ...m,
+                      images: getMemoryImages(m),
                       isMemory: true,
                       date: m.date ? parseLocalDate(m.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No date'
                     }));
@@ -8221,9 +8253,28 @@ export default function TripPlanner() {
                         borderColor: 'border-violet-500/30',
                         events: pastPartyEvents
                       },
+                      {
+                        id: 'milestone',
+                        category: 'Milestones',
+                        emoji: '✨',
+                        color: 'from-yellow-500/20 to-amber-500/20',
+                        borderColor: 'border-yellow-500/30',
+                        events: getMemoriesByCategory('milestone')
+                      },
+                      {
+                        id: 'other',
+                        category: 'Other Memories',
+                        emoji: '📝',
+                        color: 'from-slate-500/20 to-gray-500/20',
+                        borderColor: 'border-slate-500/30',
+                        events: memories.filter(m => !['datenight','travel','fitness','concert','pride','karaoke','milestone'].includes(m.category)).map(m => ({
+                          ...m, images: getMemoryImages(m), isMemory: true,
+                          date: m.date ? parseLocalDate(m.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No date'
+                        }))
+                      },
                     ];
 
-                    return categories;
+                    return categories.filter(cat => cat.events.length > 0);
                   })().map((cat) => (
                     <div key={cat.id} className={`bg-gradient-to-r ${cat.color} rounded-3xl p-6 border ${cat.borderColor}`}>
                       <div className="flex items-center gap-3 mb-4">
@@ -8347,13 +8398,14 @@ export default function TripPlanner() {
                               const isLinkImage = event.link && /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i.test(event.link);
                               const imageUrl = (event.isMemory ? getRandomMemoryImage(event) : event.image) || (isLinkImage ? event.link : null);
                               const imgSettings = event.isMemory && event.imageSettings?.[0] || { x: 50, y: 50, zoom: 100 };
+                              const allImgs = event.images || (event.isMemory ? getMemoryImages(event) : (imageUrl ? [imageUrl] : []));
                               return (
-                                <div className="mb-2 -mx-2 -mt-2 overflow-hidden rounded-t-lg h-20">
+                                <div className="mb-2 -mx-2 -mt-2 overflow-hidden rounded-t-lg h-20" onClick={(e) => { if (allImgs.length > 0) { e.stopPropagation(); openLightbox(allImgs, 0); } }}>
                                   {imageUrl ? (
                                     <img
                                       src={imageUrl}
                                       alt=""
-                                      className="w-full h-full object-cover"
+                                      className="w-full h-full object-cover cursor-pointer"
                                       style={{
                                         objectPosition: `${imgSettings.x}% ${imgSettings.y}%`,
                                         transform: `scale(${imgSettings.zoom / 100})`,
@@ -8468,14 +8520,7 @@ export default function TripPlanner() {
                     {allPhotos.map((photo, idx) => (
                       <div
                         key={idx}
-                        onClick={() => {
-                          if (photo.type === 'memory' && photo.memory) {
-                            setEditingMemory(photo.memory);
-                          } else if (photo.type === 'event' && photo.event) {
-                            setActiveSection('events');
-                            setSelectedPartyEvent(photo.event);
-                          }
-                        }}
+                        onClick={() => openLightbox(allPhotos.map(p => p.src), idx)}
                         className="group relative aspect-square rounded-2xl overflow-hidden cursor-pointer"
                       >
                         <img
@@ -9368,9 +9413,9 @@ export default function TripPlanner() {
                 <h3 className="text-lg font-semibold text-white mb-3">📷 Photos</h3>
                 {(editingTrainingWeek.week.photos || []).length > 0 && (
                   <div className="flex flex-wrap gap-3 mb-3">
-                    {(editingTrainingWeek.week.photos || []).map(photo => (
+                    {(editingTrainingWeek.week.photos || []).map((photo, photoIdx) => (
                       <div key={photo.id} className="relative group/photo">
-                        <img src={photo.url} alt="" className="w-24 h-24 rounded-xl object-cover border border-white/20" />
+                        <img src={photo.url} alt="" className="w-24 h-24 rounded-xl object-cover border border-white/20 cursor-pointer" onClick={() => openLightbox((editingTrainingWeek.week.photos || []).map(p => p.url), photoIdx)} />
                         <button
                           onClick={() => {
                             setEditingTrainingWeek(prev => ({
@@ -11525,6 +11570,15 @@ export default function TripPlanner() {
       )}
 
       {/* Day Detail Modal */}
+      {/* Photo Lightbox */}
+      {lightbox && (
+        <PhotoLightbox
+          images={lightbox.images}
+          initialIndex={lightbox.index}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+
       {selectedCalendarDay && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end md:items-center justify-center" onClick={() => setSelectedCalendarDay(null)}>
           <div className="bg-slate-800 rounded-t-2xl md:rounded-2xl w-full max-w-md max-h-[80dvh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -11591,27 +11645,29 @@ export default function TripPlanner() {
               ))}
 
               {/* Tasks due this day */}
-              {sharedTasks.filter(t => t.status !== 'done' && t.dueDate === selectedCalendarDay).map(task => (
-                <div key={task.id} className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
-                  <span className="text-2xl">✅</span>
+              {sharedTasks.filter(t => t.dueDate === selectedCalendarDay).map(task => (
+                <button key={task.id} onClick={() => { updateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' }); }}
+                  className={`w-full flex items-center gap-3 p-3 ${task.status === 'done' ? 'bg-green-500/5 border-green-500/10' : 'bg-green-500/10 border-green-500/20'} border rounded-xl hover:bg-green-500/20 transition text-left`}>
+                  <span className="text-2xl">{task.status === 'done' ? '☑️' : '✅'}</span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-white truncate">{task.title}</div>
+                    <div className={`text-sm font-semibold truncate ${task.status === 'done' ? 'text-white/40 line-through' : 'text-white'}`}>{task.title}</div>
                     <div className="text-[10px] text-green-300">Task · {task.assignee || 'Unassigned'}</div>
                   </div>
-                  <div className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
-                </div>
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${task.status === 'done' ? 'bg-green-400/40' : 'bg-green-400'}`} />
+                </button>
               ))}
 
               {/* Social on this day */}
-              {sharedSocial.filter(s => s.status !== 'done' && s.date === selectedCalendarDay).map(social => (
-                <div key={social.id} className="flex items-center gap-3 p-3 bg-pink-500/10 border border-pink-500/20 rounded-xl">
-                  <span className="text-2xl">👥</span>
+              {sharedSocial.filter(s => s.date === selectedCalendarDay).map(social => (
+                <button key={social.id} onClick={() => { updateSocial(social.id, { status: social.status === 'done' ? 'todo' : 'done' }); }}
+                  className={`w-full flex items-center gap-3 p-3 ${social.status === 'done' ? 'bg-pink-500/5 border-pink-500/10' : 'bg-pink-500/10 border-pink-500/20'} border rounded-xl hover:bg-pink-500/20 transition text-left`}>
+                  <span className="text-2xl">{social.status === 'done' ? '☑️' : '👥'}</span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-white truncate">{social.person}</div>
+                    <div className={`text-sm font-semibold truncate ${social.status === 'done' ? 'text-white/40 line-through' : 'text-white'}`}>{social.person}</div>
                     <div className="text-[10px] text-pink-300">{social.type || 'Social'}</div>
                   </div>
-                  <div className="w-2 h-2 rounded-full bg-pink-400 shrink-0" />
-                </div>
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${social.status === 'done' ? 'bg-pink-400/40' : 'bg-pink-400'}`} />
+                </button>
               ))}
 
               {/* Fitness on this day */}
@@ -11649,18 +11705,38 @@ export default function TripPlanner() {
                 ) : null;
               })()}
 
-              {/* Add Event button */}
-              <div className="pt-2 border-t border-white/10">
-                <button
-                  onClick={() => {
-                    setNewEventData(prev => ({ ...prev, date: selectedCalendarDay, name: '', emoji: '🎉', time: '18:00', endTime: '22:00', location: '', description: '', eventType: 'parties' }));
-                    setShowAddEventModal(true);
-                    setSelectedCalendarDay(null);
-                  }}
-                  className="w-full py-3 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 rounded-xl text-sm font-semibold text-amber-200 hover:from-amber-500/30 hover:to-orange-500/30 transition active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" /> Add Event on This Day
-                </button>
+              {/* Add buttons */}
+              <div className="pt-2 border-t border-white/10 space-y-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => {
+                      setShowAddTaskModal({ _prefill: true, dueDate: selectedCalendarDay });
+                      setSelectedCalendarDay(null);
+                    }}
+                    className="py-2.5 bg-green-500/15 border border-green-500/25 rounded-xl text-xs font-semibold text-green-300 hover:bg-green-500/25 transition active:scale-[0.98] flex items-center justify-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Task
+                  </button>
+                  <button
+                    onClick={() => {
+                      setNewEventData(prev => ({ ...prev, date: selectedCalendarDay, name: '', emoji: '🎉', time: '18:00', endTime: '22:00', location: '', description: '', eventType: 'parties' }));
+                      setShowAddEventModal(true);
+                      setSelectedCalendarDay(null);
+                    }}
+                    className="py-2.5 bg-amber-500/15 border border-amber-500/25 rounded-xl text-xs font-semibold text-amber-300 hover:bg-amber-500/25 transition active:scale-[0.98] flex items-center justify-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Event
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddSocialModal({ _prefill: true, date: selectedCalendarDay });
+                      setSelectedCalendarDay(null);
+                    }}
+                    className="py-2.5 bg-pink-500/15 border border-pink-500/25 rounded-xl text-xs font-semibold text-pink-300 hover:bg-pink-500/25 transition active:scale-[0.98] flex items-center justify-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Social
+                  </button>
+                </div>
               </div>
             </div>
           </div>

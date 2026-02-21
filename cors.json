@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://mikeandadam.app",
+      "https://www.mikeandadam.app",
+      "http://localhost:5173"
+    ],
+    "method": ["GET", "HEAD"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": ["Content-Type", "Content-Length"]
+  }
+]

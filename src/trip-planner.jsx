@@ -2686,8 +2686,8 @@ export default function TripPlanner() {
   // ── Search functions ──
   const getSearchResults = useCallback(() => {
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return { tasks: [], lists: [], ideas: [], social: [], habits: [], travel: [], events: [], fitness: [], memories: [] };
-    const r = { tasks: [], lists: [], ideas: [], social: [], habits: [], travel: [], events: [], fitness: [], memories: [] };
+    if (!q) return { tasks: [], lists: [], ideas: [], social: [], goals: [], travel: [], events: [], fitness: [], memories: [] };
+    const r = { tasks: [], lists: [], ideas: [], social: [], goals: [], travel: [], events: [], fitness: [], memories: [] };
     if (searchFilters.tasks) {
       r.tasks = sharedTasks.filter(t =>
         t.title?.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q) || t.tags?.some(tg => tg.toLowerCase().includes(q))
